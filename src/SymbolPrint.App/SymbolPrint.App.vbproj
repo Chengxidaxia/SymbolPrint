@@ -1,0 +1,37 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <RootNamespace></RootNamespace>
+    <AssemblyName>SymbolPrint</AssemblyName>
+    <StartupObject>App.Program</StartupObject>
+    <!-- 程序图标：红章造型，多尺寸 256/128/64/48/32/24/16 都内置在同一枚 .ico 里 -->
+    <ApplicationIcon>..\..\assets\symbolprint.ico</ApplicationIcon>
+    <MyType>WindowsForms</MyType>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <ApplicationVisualStyles>true</ApplicationVisualStyles>
+    <ApplicationUseCompatibleTextRendering>false</ApplicationUseCompatibleTextRendering>
+    <ApplicationDefaultFont>Microsoft YaHei UI, 9pt</ApplicationDefaultFont>
+    <OptionStrict>On</OptionStrict>
+    <OptionExplicit>On</OptionExplicit>
+    <OptionInfer>On</OptionInfer>
+    <AllowUnsafeBlocks>false</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);WFO1000</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SymbolPrint.Core\SymbolPrint.Core.vbproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3351.48" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- 图案编辑器是 HTML/JS，作为资源内嵌，避免安装目录里多一层依赖 -->
+    <EmbeddedResource Include="..\..\assets\editor\editor.html" LogicalName="editor.html" />
+  </ItemGroup>
+
+</Project>

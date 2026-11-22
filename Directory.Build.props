@@ -1,0 +1,26 @@
+<Project>
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <OptionStrict>On</OptionStrict>
+    <OptionExplicit>On</OptionExplicit>
+    <OptionInfer>On</OptionInfer>
+    <OptionCompare>Binary</OptionCompare>
+    <Deterministic>true</Deterministic>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
+
+    <!-- 版本：只改这里一处，exe 文件属性、CLI 输出都跟着走 -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+    <Product>SymbolPrint</Product>
+    <Description>SymbolPrint 电子盖章：把章写进文件的空白区，不改动原有内容</Description>
+
+    <!-- 最低系统：Windows 10 22H2（build 19045）及以上。
+         刻意不把目标框架写成 net9.0-windows10.0.19041.0：那会引入 24MB 的
+         Microsoft.Windows.SDK.NET.dll（WinRT 投影），本程序一个 WinRT API 都没用。
+         「最低系统」由 Program.vb 的运行时检查 + README 声明来表达。 -->
+  </PropertyGroup>
+</Project>

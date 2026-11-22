@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  可选：把 NuGet 包缓存放到其它盘（默认在 %USERPROFILE%\.nuget\packages）。
+  需要时复制本文件为 nuget.config，并把路径改成自己的。
+  仓库里不带 nuget.config，避免把某台机器的绝对路径写死进来。
+-->
+<configuration>
+  <!--
+  <config>
+    <add key="globalPackagesFolder" value="D:/nuget/packages" />
+  </config>
+  -->
+  <packageSources>
+    <clear />
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" protocolVersion="3" />
+  </packageSources>
+</configuration>

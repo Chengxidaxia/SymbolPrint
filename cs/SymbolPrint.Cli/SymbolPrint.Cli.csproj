@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net9.0-windows</TargetFramework>
+    <RootNamespace>SymbolPrint.Cli</RootNamespace>
+    <AssemblyName>spcli-cs</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SymbolPrint.Core\SymbolPrint.Core.csproj" />
+  </ItemGroup>
+
+</Project>
