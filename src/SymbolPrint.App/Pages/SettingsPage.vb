@@ -66,7 +66,9 @@ Namespace App.Pages
             "Verify.ShowRawHex", "Verify.ReportFormat", "Verify.CopyReportToClipboard",
             "Progress.DelayMs", "Progress.ThrottleMs", "Progress.Enabled",
             "Progress.ShowIndeterminate", "Progress.ShowBytesDetail",
-            "Ui.ShowStampDescription", "Ui.ShowAdvancedByDefault", "Ui.ConfirmBeforeOverwrite"
+            "Ui.ShowStampDescription", "Ui.ShowAdvancedByDefault", "Ui.ConfirmBeforeOverwrite",
+            "Carriers.PreferredOrder", "Carriers.ZipCommentMaxBytes",
+            "Carriers.ZeroWidthPair", "Carriers.RtfGroupName"
         }
 
         ''' <summary>枚举值的中文显示（写回时仍用英文名，保持配置文件可读）。</summary>
@@ -713,6 +715,8 @@ Namespace App.Pages
 
             Try
                 _owner.Settings.Save()
+                ' 载体类设置改了要立刻生效，不用重启
+                SymbolPrint.Core.Service.CarrierRegistry.Configure(_owner.Settings.Carriers)
                 _status.Text = $"已保存（{changed} 项有改动）：{AppSettings.DefaultPath()}"
                 Anim.FadeText(_status, Theme.Ok, 260)
                 FlashSaved()

@@ -27,12 +27,49 @@ Namespace Service
             End Get
         End Property
 
+        ''' <summary>
+        ''' 把「载体」设置分发给支持它��载体（文本码点、RTF 组名、ZIP 注释上限），
+        ''' 并记住载体优先级。不改设置的调用方完全不受影响。
+        ''' </summary>
+        Public Shared Sub Configure(s As CarrierSettings)
+            If s Is Nothing Then Return
+            _preferred = If(String.IsNullOrWhiteSpace(s.PreferredOrder),
+                            Array.Empty(Of String)(),
+                            s.PreferredOrder.Split(","c).Select(Function(x) x.Trim().ToLowerInvariant()).
+                                Where(Function(x) x.Length > 0).ToArray())
+            For Each c In All
+                Dim aware = TryCast(c, ISettingsAware)
+                If aware IsNot Nothing Then
+                    Try
+                        aware.ApplySettings(s)
+                    Catch
+                        ' 单个载体配置失败不能影响整个程序
+                    End Try
+                End If
+            Next
+        End Sub
+
+        Private Shared _preferred As String() = Array.Empty(Of String)()
+
+        ''' <summary>按「载体优先级」排列后的候选顺序；没配置过就是内置顺序。</summary>
+        Private Shared Function InPreferredOrder() As List(Of IStampCarrier)
+            Dim list As New List(Of IStampCarrier)
+            For Each id In _preferred
+                Dim c = ById(id)
+                If c IsNot Nothing AndAlso Not list.Contains(c) Then list.Add(c)
+            Next
+            For Each c In All
+                If Not list.Contains(c) Then list.Add(c)
+            Next
+            Return list
+        End Function
+
         Public Shared Function Find(filePath As String) As IStampCarrier
             ' 1) 先按文件头判定真实容器：改成 .png 的 zip、改成 .bin 的图片都不会选错载体
             Dim byHead = ForKind(FileSniffer.KindOf(filePath), filePath)
             If byHead IsNot Nothing Then Return byHead
-            ' 2) 头认不出（空文件、加密/私有格式）→ 扩展名兜底
-            For Each c In All
+            ' 2) 头认不出（空文件、加密/私有格式）→ 按载体优先级 + 扩展名兜底
+            For Each c In InPreferredOrder()
                 Try
                     If c.CanHandle(filePath) Then Return c
                 Catch

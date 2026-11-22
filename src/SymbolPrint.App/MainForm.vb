@@ -52,6 +52,8 @@ Namespace App
 
         Friend Sub New(Optional args As String() = Nothing)
             _startupArgs = args
+            ' 启动时把「载体」设置下发给各载体（文本码点 / RTF 组名 / ZIP 注释上限 / 优先级）
+            SymbolPrint.Core.Service.CarrierRegistry.Configure(Settings.Carriers)
             Text = "SymbolPrint — 电子盖章"
             MinimumSize = New Size(1120, 820)
             Size = PreferredWindowSize()

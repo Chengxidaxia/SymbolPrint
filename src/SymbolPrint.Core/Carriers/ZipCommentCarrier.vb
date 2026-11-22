@@ -17,10 +17,21 @@ Namespace Carriers
     ''' 容量上限 65535 字节（压缩后的信封要塞得进去）；超了由上层决定是否重打包。
     ''' </summary>
     Public NotInheritable Class ZipCommentCarrier
+        Implements ISettingsAware
         Implements IStampCarrier
         Implements IOriginalHashAware
 
         Public Const MaxComment As Integer = 65535
+        ' 可被设置下调（ZIP 规范上限仍是 65535，只能更小不能更大）
+        Private _commentMax As Integer = MaxComment
+
+        ''' <summary>ZIP 注释区上限来自「高级设置 → 载体 → ZIP 注释区上限」。</summary>
+        Public Sub ApplySettings(s As SymbolPrint.Core.Model.CarrierSettings) Implements ISettingsAware.ApplySettings
+            If s Is Nothing Then Return
+            If s.ZipCommentMaxBytes >= 1024 AndAlso s.ZipCommentMaxBytes <= MaxComment Then
+                _commentMax = s.ZipCommentMaxBytes
+            End If
+        End Sub
         Private Const EocdSize As Integer = 22
 
         Private Shared ReadOnly Exts As String() = {".zip", ".zipx", ".docx", ".docm", ".dotx", ".dotm",
@@ -108,7 +119,7 @@ Namespace Carriers
                     If eocd < 0 Then Return -1
                     Dim c = ReadComment(fs, eocd)
                     Dim baseLen As Integer = If(StripOurBlob(c) Is Nothing, 0, StripOurBlob(c).Length)
-                    Return Math.Max(0, MaxComment - baseLen)
+                    Return Math.Max(0, _commentMax - baseLen)
                 End Using
             Catch
                 Return -1

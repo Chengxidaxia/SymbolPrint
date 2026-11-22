@@ -19,9 +19,26 @@ Namespace Carriers
     Public NotInheritable Class ZeroWidthTextCarrier
         Implements IStampCarrier
         Implements IOriginalHashAware
+        Implements ISettingsAware
 
         ' 四个零宽符号 —— 都不占宽度，都不会被 trim
-        Private Shared ReadOnly Syms As Char() = {ChrW(&H200B), ChrW(&H200C), ChrW(&H200D), ChrW(&H2060)}
+        Private Shared ReadOnly DefaultSyms As Char() = {ChrW(&H200B), ChrW(&H200C), ChrW(&H200D), ChrW(&H2060)}
+        ' 可被设置覆盖：设置里只给两个码点，就用它们替换 0/1 两档，2/3 档保持默认，
+        ' 这样编码方式与块体积都不变，已有记录照样能读。
+        Private ReadOnly _syms As Char() = CType(DefaultSyms.Clone(), Char())
+
+        ''' <summary>零宽字符码点来自「高级设置 → 载体 → 零宽字符集」（形如 200B,200C）。</summary>
+        Public Sub ApplySettings(s As SymbolPrint.Core.Model.CarrierSettings) Implements ISettingsAware.ApplySettings
+            If s Is Nothing OrElse String.IsNullOrWhiteSpace(s.ZeroWidthPair) Then Return
+            Dim parts = s.ZeroWidthPair.Split(","c)
+            If parts.Length < 2 Then Return
+            Dim a As Integer, b As Integer
+            If Not Integer.TryParse(parts(0).Trim(), Globalization.NumberStyles.HexNumber, Nothing, a) Then Return
+            If Not Integer.TryParse(parts(1).Trim(), Globalization.NumberStyles.HexNumber, Nothing, b) Then Return
+            If a <= &H20 OrElse b <= &H20 OrElse a > &H10FFFF OrElse b > &H10FFFF OrElse a = b Then Return
+            _syms(0) = ChrW(a)
+            _syms(1) = ChrW(b)
+        End Sub
         Private Shared ReadOnly Magic As Byte() = {&H53, &H50, &H5A, &H1} ' "SPZ\1"
 
         Private Const TailChars As Integer = 16
@@ -52,18 +69,18 @@ Namespace Carriers
 
         ' ---- 编码 ----
 
-        Private Shared Function EncodeBytes(data As Byte()) As String
+        Private Function EncodeBytes(data As Byte()) As String
             Dim sb As New StringBuilder(data.Length * 4)
             For Each b In data
-                sb.Append(Syms((b >> 6) And 3))
-                sb.Append(Syms((b >> 4) And 3))
-                sb.Append(Syms((b >> 2) And 3))
-                sb.Append(Syms(b And 3))
+                sb.Append(_syms((b >> 6) And 3))
+                sb.Append(_syms((b >> 4) And 3))
+                sb.Append(_syms((b >> 2) And 3))
+                sb.Append(_syms(b And 3))
             Next
             Return sb.ToString()
         End Function
 
-        Private Shared Function EncodeU32(v As UInteger) As String
+        Private Function EncodeU32(v As UInteger) As String
             Dim b(3) As Byte
             b(0) = CByte(v And &HFFUI)
             b(1) = CByte((v >> 8) And &HFFUI)
@@ -72,15 +89,15 @@ Namespace Carriers
             Return EncodeBytes(b)
         End Function
 
-        Private Shared Function SymIndex(c As Char) As Integer
+        Private Function SymIndex(c As Char) As Integer
             For i As Integer = 0 To 3
-                If Syms(i) = c Then Return i
+                If _syms(i) = c Then Return i
             Next
             Return -1
         End Function
 
         ''' <summary>把一串零宽字符解回字节；遇到非本字母表的字符返回 Nothing。</summary>
-        Private Shared Function DecodeChars(chars As String) As Byte()
+        Private Function DecodeChars(chars As String) As Byte()
             If chars.Length Mod 4 <> 0 Then Return Nothing
             Dim n = chars.Length \ 4
             Dim out(n - 1) As Byte
@@ -97,7 +114,7 @@ Namespace Carriers
         End Function
 
         ''' <summary>从文件尾部读出总字符数（块长度）。</summary>
-        Private Shared Function ReadBlockChars(fs As FileStream) As Integer
+        Private Function ReadBlockChars(fs As FileStream) As Integer
             Dim len = fs.Length
             If len < TailBytes Then Return -1
             fs.Position = len - TailBytes
@@ -119,7 +136,7 @@ Namespace Carriers
         End Function
 
         ''' <summary>定位我们的块：返回 (起始字节, 字节长度)；没有则 (-1, 0)。</summary>
-        Public Shared Function LocateBlock(filePath As String) As (Start As Long, Length As Long)
+        Public Function LocateBlock(filePath As String) As (Start As Long, Length As Long)
             Using fs As New FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
                 Dim chars = ReadBlockChars(fs)
                 If chars < 0 Then Return (-1, 0)
@@ -166,7 +183,7 @@ Namespace Carriers
                     "如果在 GBK/ANSI 文件里追加，会显示成乱码。请先把它转成 UTF-8 再盖章。")
             End If
 
-            RemoveBlob(filePath)
+            ' 不清旧记录：盖章默认「保留旧记录、追加新记录」，由 SealOptions.ReplaceExisting 决定
 
             Dim payloadChars = blob.Length * 4
             Dim totalChars = MagicChars + payloadChars + TailChars
@@ -228,8 +245,21 @@ Namespace Carriers
     Public NotInheritable Class RtfGroupCarrier
         Implements IStampCarrier
         Implements IOriginalHashAware
+        Implements ISettingsAware
 
-        Private Shared ReadOnly Marker As Byte() = Encoding.ASCII.GetBytes("{\*\symprint ")
+        ''' <summary>RTF 组名来自「高级设置 → 载体 → RTF 组名」，读写共用同一个标记。</summary>
+        Public Sub ApplySettings(s As SymbolPrint.Core.Model.CarrierSettings) Implements ISettingsAware.ApplySettings
+            If s Is Nothing OrElse String.IsNullOrWhiteSpace(s.RtfGroupName) Then Return
+            Dim name = s.RtfGroupName.Trim()
+            ' RTF 组名只能是字母数字，否则会被 RTF 解析器当成控制字
+            If Not Text.RegularExpressions.Regex.IsMatch(name, "^[A-Za-z][A-Za-z0-9]{0,31}$") Then Return
+            ' 组名长度可以不同，整块替换；旧记录按旧组名存放，改回原名才能读回
+            _marker = Encoding.ASCII.GetBytes("{\*\" & name & " ")
+        End Sub
+
+        Private Shared ReadOnly DefaultMarker As Byte() = Encoding.ASCII.GetBytes("{\*\symprint ")
+        ' RTF 组名来自「高级设置 → 载体 → RTF 组名」，读写必须用同一份
+        Private _marker As Byte() = CType(DefaultMarker.Clone(), Byte())
         Private Const MaxRtfSize As Long = 256L * 1024 * 1024
 
         Public ReadOnly Property Id As String Implements IStampCarrier.Id
@@ -253,12 +283,12 @@ Namespace Carriers
         End Function
 
         ''' <summary>找到我们那一组的 (起始, 长度)；没有则 (-1, 0)。</summary>
-        Public Shared Function LocateGroup(bytes As Byte()) As (Start As Integer, Length As Integer)
+        Public Function LocateGroup(bytes As Byte()) As (Start As Integer, Length As Integer)
             Dim start As Integer = -1
-            For i As Integer = bytes.Length - Marker.Length To 0 Step -1
+            For i As Integer = bytes.Length - _marker.Length To 0 Step -1
                 Dim hit = True
-                For j As Integer = 0 To Marker.Length - 1
-                    If bytes(i + j) <> Marker(j) Then
+                For j As Integer = 0 To _marker.Length - 1
+                    If bytes(i + j) <> _marker(j) Then
                         hit = False
                         Exit For
                     End If
@@ -271,7 +301,7 @@ Namespace Carriers
             If start < 0 Then Return (-1, 0)
 
             Dim close As Integer = -1
-            For i As Integer = start + Marker.Length To bytes.Length - 1
+            For i As Integer = start + _marker.Length To bytes.Length - 1
                 If bytes(i) = CByte(AscW("}"c)) Then
                     close = i
                     Exit For
@@ -291,9 +321,9 @@ Namespace Carriers
             Dim all = ReadAll(filePath)
             Dim g = LocateGroup(all)
             If g.Start < 0 Then Return Nothing
-            Dim hexLen = g.Length - Marker.Length - 1
+            Dim hexLen = g.Length - _marker.Length - 1
             If hexLen <= 0 OrElse hexLen Mod 2 <> 0 Then Return Nothing
-            Dim hex = Encoding.ASCII.GetString(all, g.Start + Marker.Length, hexLen)
+            Dim hex = Encoding.ASCII.GetString(all, g.Start + _marker.Length, hexLen)
             Try
                 Return Bin.FromHex(hex)
             Catch

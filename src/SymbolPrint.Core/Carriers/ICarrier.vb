@@ -41,6 +41,14 @@ Namespace Carriers
     ''' 不实现它的载体按默认规则处理：我们的信封就是文件最末尾那 blobLen 字节，还原 = 取前 len-blobLen 字节。
     ''' ZIP 注释区（改写了 2 字节注释长度）与章 .bin 自指区（要把保留区视作全零）必须实现它。
     ''' </summary>
+    ''' <summary>
+    ''' 载体若要读取用户设置（文本插入位置、RTF 组名、零宽码点、ZIP 注释上限等）就实现它。
+    ''' 不实现的载体一律使用内置默认值——所以接口方法签名保持不变，不影响既有调用方。
+    ''' </summary>
+    Public Interface ISettingsAware
+        Sub ApplySettings(s As SymbolPrint.Core.Model.CarrierSettings)
+    End Interface
+
     Public Interface IOriginalHashAware
         ''' <summary>计算"摘掉我们信封后"的文件内容 SHA3-512。</summary>
         Function HashOriginal(filePath As String, blobLen As Integer,
