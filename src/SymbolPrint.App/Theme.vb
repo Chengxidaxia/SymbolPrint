@@ -305,6 +305,51 @@ Namespace App
             Return t
         End Function
 
+        ''' <summary>
+        ''' 把一棵控件树里的输入类控件统一刷成主题色。
+        ''' 为什么用遍历而不是每个都走工厂：项目里有一批控件是直接 New 出来的
+        ''' （数字框、路径框、日志框），逐个改工厂总会漏；遍历能一次覆盖，新增控件也自动跟着走。
+        ''' </summary>
+        Friend Sub ThemeInputs(root As Control)
+            If root Is Nothing Then Return
+            For Each c As Control In root.Controls
+                Try
+                    Select Case True
+                        Case TypeOf c Is TextBox
+                            Dim t = DirectCast(c, TextBox)
+                            t.BackColor = If(t.ReadOnly, InputBg, InputBg)
+                            t.ForeColor = TextMain
+                        Case TypeOf c Is RichTextBox
+                            Dim r = DirectCast(c, RichTextBox)
+                            r.BackColor = InputBg
+                            r.ForeColor = TextSub
+                        Case TypeOf c Is NumericUpDown
+                            Dim n = DirectCast(c, NumericUpDown)
+                            n.BackColor = InputBg
+                            n.ForeColor = TextMain
+                            ' 已知问题：设了底色之后，深色下两位/三位数字会被裁成一位（72 → 7）。
+                            ' 试过移除 BorderStyle、补宽度都不生效，说明是 UpDownEdit 重建后
+                            ' 的 client 尺寸计算问题，需要单独查控件树，先不在这里打补丁。
+                            ' 不要动 BorderStyle：改了会让内部编辑区的可用宽度重算，
+                            ' 数字会被截成"7"而不是"72"
+                        Case TypeOf c Is ComboBox
+                            Dim cb = DirectCast(c, ComboBox)
+                            cb.BackColor = InputBg
+                            cb.ForeColor = TextMain
+                            cb.FlatStyle = FlatStyle.Flat
+                        Case TypeOf c Is ListBox
+                            Dim lb = DirectCast(c, ListBox)
+                            lb.BackColor = Card
+                            lb.ForeColor = TextMain
+                        Case TypeOf c Is CheckBox, TypeOf c Is RadioButton
+                            c.ForeColor = TextMain
+                    End Select
+                Catch
+                End Try
+                If c.Controls.Count > 0 Then ThemeInputs(c)
+            Next
+        End Sub
+
         Friend Function Separator() As Panel
             Dim p As New Panel()
             p.Height = 1

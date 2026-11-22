@@ -94,6 +94,8 @@ Namespace App
             Controls.Add(BuildHeader())
 
             BuildPages()
+            ' 所有页面建完后统一刷一遍输入控件配色（数字框/路径框/日志框都是直接 New 的）
+            Theme.ThemeInputs(Me)
             ShowPage("stamp")
 
             AddHandler Shown, Sub(s, e)

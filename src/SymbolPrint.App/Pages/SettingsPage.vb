@@ -461,6 +461,8 @@ Namespace App.Pages
             End If
             LayoutRows()
             _host.ResumeLayout()
+            ' 参数行是每次切换分组重建的，主题色也要跟着重新刷（否则深色下会冒白框）
+            Theme.ThemeInputs(_host)
             FadeInRows()
         End Sub
 
