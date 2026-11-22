@@ -692,8 +692,53 @@ Namespace App
         ''' --audit [输出文件] [--size 宽x高] [--probe]：逐页跑布局自检，把文字截断 / 控件重叠 / 越界 / 横向溢出写成清单。
         ''' 这是给「改完界面自己先量一遍」用的，不参与正常流程。
         ''' </summary>
+        ''' <summary>--uidump [txt]：导出所有数字框的实际尺寸，用于对比主题差异。</summary>
+        Private Sub DumpNumberBoxes()
+            Dim outPath = ArgValue("--uidump")
+            If outPath = "" Then outPath = IO.Path.Combine(IO.Path.GetTempPath(), "uidump.txt")
+            Dim sb As New Text.StringBuilder()
+            sb.AppendLine($"dark={Theme.IsDark}  uiFont={Theme.FontBase.SizeInPoints}")
+            Try
+                For Each c In AllControls(Me)
+                    If TypeOf c Is NumericUpDown Then
+                        Dim n = DirectCast(c, NumericUpDown)
+                        Dim edit As Control = Nothing
+                        For Each ch As Control In n.Controls
+                            If TypeOf ch Is TextBox Then edit = ch
+                        Next
+                        sb.AppendLine($"NUM w={n.Width} client={n.ClientSize.Width} " &
+                                      $"editW={If(edit Is Nothing, -1, edit.Width)} " &
+                                      $"editClient={If(edit Is Nothing, -1, edit.ClientSize.Width)} " &
+                                      $"font={n.Font.SizeInPoints} text='{n.Text}'")
+                    End If
+                Next
+            Catch ex As Exception
+                sb.AppendLine("EX " & ex.Message)
+            End Try
+            Try
+                IO.File.WriteAllText(outPath, sb.ToString(), System.Text.Encoding.UTF8)
+            Catch
+            End Try
+            Close()
+        End Sub
+
+        Private Iterator Function AllControls(root As Control) As IEnumerable(Of Control)
+            For Each c As Control In root.Controls
+                Yield c
+                If c.Controls.Count > 0 Then
+                    For Each x In AllControls(c)
+                        Yield x
+                    Next
+                End If
+            Next
+        End Function
+
         Private Sub RunAuditIfRequested()
             If _startupArgs Is Nothing Then Return
+            If Array.IndexOf(_startupArgs, "--uidump") >= 0 Then
+                DumpNumberBoxes()
+                Return
+            End If
             If Array.IndexOf(_startupArgs, "--animtest") >= 0 Then
                 RunAnimTest()
                 Return

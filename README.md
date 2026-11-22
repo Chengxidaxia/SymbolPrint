@@ -3,7 +3,7 @@
 把「章」写进文件自身：只往文件的空白区追加数据，**不改动原有字节**，文件照常打开、照常使用。
 同时支持把印章图案直接贴到图片 / PDF 上，并能在事后验证文件有没有被改动。
 
-> 当前版本 **1.0.2**（Release 标签 `r1.0.2`）。主程序是单个 `SymbolPrint.exe`，
+> 当前版本 **1.0.3**（Release 标签 `r1.0.3`）。主程序是单个 `SymbolPrint.exe`，
 > 少数运行时依赖以 `.dll` 形式放在同目录。
 
 ---
@@ -54,8 +54,8 @@
 
 | 包 | 体积 | 依赖 |
 |---|---|---|
-| `SymbolPrint-1.0.2-win-x64.zip` | **3.8 MB** | 需要 .NET 9 Desktop Runtime（装一次） |
-| `SymbolPrint-1.0.2-win-x64-selfcontained.zip` | 46 MB | 免装运行时，解压即用 |
+| `SymbolPrint-1.0.3-win-x64.zip` | **3.8 MB** | 需要 .NET 9 Desktop Runtime（装一次） |
+| `SymbolPrint-1.0.3-win-x64-selfcontained.zip` | 46 MB | 免装运行时，解压即用 |
 
 ## 快速开始
 
@@ -105,6 +105,12 @@ dotnet publish src/SymbolPrint.App/SymbolPrint.App.vbproj -c Release -r win-x64 
   -p:DebugType=None -p:DebugSymbols=false `
   -o dist/sc
 ```
+
+## 主题与窗口
+
+- 「高级设置 → 通用 → 主题」：System（跟随 Windows）/ Light / Dark，**重启后生效**
+- 深色不是把浅色反相：底色用中性灰蓝而非纯黑，正文不用纯白，强调色提亮保证深底对比度
+- 默认窗口 1920×1080；屏幕装不下（1080p 去掉任务栏）时占可用区 96%，约 1843×998
 
 ## 高级设置
 
