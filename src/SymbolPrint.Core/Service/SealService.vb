@@ -522,7 +522,7 @@ Namespace Service
                 Dim raw = rec.Serialize()
 
                 res.StampTime = rec.StampTime
-                res.RecordVersion = SealRecord.Version
+                res.RecordVersion = rec.RecordVer
 
                 ' 8) 压缩 + 信封
                 Dim payload = SealedPayload.Build(raw, options.BrotliQuality,

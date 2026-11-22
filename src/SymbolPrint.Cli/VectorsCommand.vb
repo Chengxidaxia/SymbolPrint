@@ -242,6 +242,11 @@ Namespace SymbolPrint.Cli
 
                 Case "seal_record"
                     Dim rec As New SealRecord()
+                    ' 用例名带 /v1 的，按 v1 布局复现（守住老记录的字节形态）；
+                    ' 其余按当前版本写出，这样新老两代格式都被向量钉住
+                    If c.Name IsNot Nothing AndAlso c.Name.EndsWith("/v1", StringComparison.Ordinal) Then
+                        rec.RecordVer = 1
+                    End If
                     rec.Key1 = Bin.FromHex(c.Input("key1"))
                     rec.Nonce1 = Bin.FromHex(c.Input("nonce1"))
                     rec.Tag1 = Bin.FromHex(c.Input("tag1"))

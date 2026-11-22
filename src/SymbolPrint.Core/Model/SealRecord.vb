@@ -25,7 +25,10 @@ Namespace Model
     ''' </summary>
     Public NotInheritable Class SealRecord
 
+        ''' <summary>v1 的固定布局（老记录）。仍需能解析，否则已经盖过章的文件全部验不过。</summary>
         Public Const Version As Byte = 1
+        ''' <summary>当前写出的版本：头部带长度字段与 HKDF info，允许各参数可调。</summary>
+        Public Const CurrentVersion As Byte = 2
         Public Const HeaderSize As Integer = 96
         Public Const Pbkdf2Len As Integer = 32
 
@@ -37,9 +40,43 @@ Namespace Model
         Public Property Section1Cipher As Byte()
         Public Property OwnContentSha3 As Byte()
 
+        ' ---- v2 才有的长度描述；v1 记录解析后这些保持默认值 ----
+        Public Property RecordVer As Byte = CurrentVersion
+        Public Property SaltLen As Integer = 16
+        Public Property Key1Len As Integer = 32
+        Public Property NonceLen As Integer = 12
+        Public Property TagLen As Integer = 16
+        Public Property Pbkdf2LenUsed As Integer = Pbkdf2Len
+        Public Property HkdfInfo As String = "SymbolPrint-ECIES-v1"
+
         ''' <summary>把本记录序列化为最终写入宿主文件的原始字节（再经压缩与信封封装）。</summary>
         Public Function Serialize() As Byte()
             Dim w As New ByteWriter()
+            If RecordVer >= 2 Then
+                Dim info = Util.Bin.Utf8Bytes(If(HkdfInfo, ""))
+                w.WriteU8(CurrentVersion)
+                Dim flags2 As Byte = 0
+                If VisualBurned Then flags2 = CByte(flags2 Or 1)
+                w.WriteU8(flags2)
+                w.WriteU8(CByte(Key1Len))
+                w.WriteU8(CByte(NonceLen))
+                w.WriteU8(CByte(TagLen))
+                w.WriteU8(CByte(Pbkdf2LenUsed))
+                w.WriteU8(CByte(SaltLen))
+                w.WriteU8(CByte(Math.Min(255, info.Length)))
+                w.WriteBytes(info)
+                w.WriteU16(CUShort(HeaderSize))
+                w.WriteU64(CULng(StampTime.ToUnixTimeMilliseconds()))
+                w.WriteBytes(OwnContentSha3)
+                w.WriteBytes(Key1)
+                w.WriteBytes(Nonce1)
+                w.WriteBytes(Tag1)
+                w.WriteU32(CUInt(Section1Cipher.Length))
+                w.WriteBytes(Section1Cipher)
+                Return w.ToArray()
+            End If
+
+            ' v1：保持原样，不要动（旧向量要能复现）
             w.WriteU8(Version)
             Dim flags As Byte = 0
             If VisualBurned Then flags = CByte(flags Or 1)
@@ -55,9 +92,33 @@ Namespace Model
             Return w.ToArray()
         End Function
 
-        ''' <summary>计算 ownContentSha3：覆盖版本/标志/时间戳/密钥/nonce/tag/密文。</summary>
+        ''' <summary>计算 ownContentSha3：覆盖版本/标志/长度描述/时间戳/密钥/nonce/tag/密文。</summary>
         Public Sub SealOwnHash()
+            OwnContentSha3 = Sha3Kdf.Hash512(OwnHashInput())
+        End Sub
+
+        ''' <summary>ownContentSha3 覆盖的字节；v1 与 v2 布局不同，必须按记录版本各算各的。</summary>
+        Private Function OwnHashInput() As Byte()
             Dim w As New ByteWriter()
+            If RecordVer >= 2 Then
+                Dim info = Util.Bin.Utf8Bytes(If(HkdfInfo, ""))
+                w.WriteU8(CurrentVersion)
+                w.WriteU8(CByte(If(VisualBurned, 1, 0)))
+                w.WriteU8(CByte(Key1Len))
+                w.WriteU8(CByte(NonceLen))
+                w.WriteU8(CByte(TagLen))
+                w.WriteU8(CByte(Pbkdf2LenUsed))
+                w.WriteU8(CByte(SaltLen))
+                w.WriteU8(CByte(Math.Min(255, info.Length)))
+                w.WriteBytes(info)
+                w.WriteU64(CULng(StampTime.ToUnixTimeMilliseconds()))
+                w.WriteBytes(Key1)
+                w.WriteBytes(Nonce1)
+                w.WriteBytes(Tag1)
+                w.WriteBytes(Section1Cipher)
+                Return w.ToArray()
+            End If
+
             w.WriteU8(Version)
             w.WriteU8(CByte(If(VisualBurned, 1, 0)))
             w.WriteU64(CULng(StampTime.ToUnixTimeMilliseconds()))
@@ -65,17 +126,45 @@ Namespace Model
             w.WriteBytes(Nonce1)
             w.WriteBytes(Tag1)
             w.WriteBytes(Section1Cipher)
-            OwnContentSha3 = Sha3Kdf.Hash512(w.ToArray())
-        End Sub
+            Return w.ToArray()
+        End Function
 
         Public Shared Function Parse(raw As Byte()) As SealRecord
             Dim r As New ByteReader(raw)
             Dim ver = r.ReadU8()
-            If ver <> Version Then Throw New InvalidDataException($"不支持的盖章记录版本：{ver}（本程序支持 {Version}）。")
+            If ver <> Version AndAlso ver <> CurrentVersion Then
+                Throw New InvalidDataException($"不支持的盖章记录版本：{ver}（本程序支持 1 / {CurrentVersion}）。")
+            End If
+
+            Dim rec As New SealRecord()
+            rec.RecordVer = ver
+
+            If ver >= 2 Then
+                Dim flags2 = r.ReadU8()
+                rec.Key1Len = r.ReadU8()
+                rec.NonceLen = r.ReadU8()
+                rec.TagLen = r.ReadU8()
+                rec.Pbkdf2LenUsed = r.ReadU8()
+                rec.SaltLen = r.ReadU8()
+                Dim infoLen = CInt(r.ReadU8())
+                If infoLen > 0 Then rec.HkdfInfo = Util.Bin.Utf8(r.ReadBytes(infoLen)) Else rec.HkdfInfo = ""
+
+                Dim hs2 = r.ReadU16()
+                If hs2 <> HeaderSize Then Throw New InvalidDataException($"盖章记录头长度异常：{hs2}")
+                rec.VisualBurned = (flags2 And 1) <> 0
+                rec.StampTime = DateTimeOffset.FromUnixTimeMilliseconds(CLng(r.ReadU64()))
+                rec.OwnContentSha3 = r.ReadBytes(64)
+                rec.Key1 = r.ReadBytes(Math.Max(1, rec.Key1Len))
+                rec.Nonce1 = r.ReadBytes(Math.Max(1, rec.NonceLen))
+                rec.Tag1 = r.ReadBytes(Math.Max(1, rec.TagLen))
+                Dim slen2 = CInt(r.ReadU32())
+                rec.Section1Cipher = r.ReadBytes(slen2)
+                Return rec
+            End If
+
             Dim flags = r.ReadU8()
             Dim hs = r.ReadU16()
             If hs <> HeaderSize Then Throw New InvalidDataException($"盖章记录头长度异常：{hs}")
-            Dim rec As New SealRecord()
             rec.StampTime = DateTimeOffset.FromUnixTimeMilliseconds(CLng(r.ReadU64()))
             rec.VisualBurned = (flags And 1) <> 0
             rec.OwnContentSha3 = r.ReadBytes(64)
@@ -90,15 +179,7 @@ Namespace Model
         ''' <summary>校验 ownContentSha3 是否与内容一致。</summary>
         Public Function VerifyOwnHash() As Boolean
             If OwnContentSha3 Is Nothing OrElse OwnContentSha3.Length <> 64 Then Return False
-            Dim w As New ByteWriter()
-            w.WriteU8(Version)
-            w.WriteU8(CByte(If(VisualBurned, 1, 0)))
-            w.WriteU64(CULng(StampTime.ToUnixTimeMilliseconds()))
-            w.WriteBytes(Key1)
-            w.WriteBytes(Nonce1)
-            w.WriteBytes(Tag1)
-            w.WriteBytes(Section1Cipher)
-            Return Bin.Same(Sha3Kdf.Hash512(w.ToArray()), OwnContentSha3)
+            Return Bin.Same(Sha3Kdf.Hash512(OwnHashInput()), OwnContentSha3)
         End Function
 
         Public Function HeaderLength() As Integer
