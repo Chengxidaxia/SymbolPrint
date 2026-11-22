@@ -111,17 +111,8 @@ Namespace Model
         <Setting("主题", "通用", choices:={"System", "Light", "Dark"})>
         Public Property Theme As AppTheme = AppTheme.System
 
-        <Setting("临时目录", "通用", help:="留空则用系统临时目录。大文件操作会在这里落临时文件，建议放在空间充足的盘。")>
-        Public Property TempDirectory As String = ""
-
         <Setting("并行度", "通用", unit:="线程", minValue:=1, maxValue:=64, help:="批量盖章时的并发文件数。")>
         Public Property MaxParallelism As Integer = 1
-
-        <Setting("保留临时文件", "通用", advanced:=True, help:="调试用；正常使用请关闭。")>
-        Public Property KeepTempFiles As Boolean = False
-
-        <Setting("最近文件数量", "通用", minValue:=0, maxValue:=50)>
-        Public Property RecentFilesLimit As Integer = 10
 
         <Setting("自动备份原文件", "通用", advanced:=True, help:="盖章前把原文件复制一份 .bak，失败时可回滚。")>
         Public Property AutoBackupOriginal As Boolean = True
@@ -421,7 +412,6 @@ Namespace Model
         ''' <summary>把所有越界/非法的值拉回合法范围（配置文件被手改也不会炸）。</summary>
         Public Sub Normalize()
             General.MaxParallelism = Clamp(General.MaxParallelism, 1, 64)
-            General.RecentFilesLimit = Clamp(General.RecentFilesLimit, 0, 50)
             If String.IsNullOrEmpty(General.BackupSuffix) Then General.BackupSuffix = ".bak"
 
             Crypto.Pbkdf2Iterations = Clamp(Crypto.Pbkdf2Iterations, 1000, 2000000)

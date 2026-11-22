@@ -58,6 +58,15 @@ Namespace App
             MinimumSize = New Size(1120, 820)
             Size = PreferredWindowSize()
             StartPosition = FormStartPosition.CenterScreen
+
+            ' 「记住窗口位置」：上次在哪就在哪（先校验还在某块屏幕上，免得拔了副屏看不见窗口）
+            If Settings.Ui.RememberWindowBounds Then
+                Dim st = AppUiState.Load()
+                If st.BoundsVisible() Then
+                    StartPosition = FormStartPosition.Manual
+                    Bounds = New Rectangle(st.X, st.Y, st.Width, st.Height)
+                End If
+            End If
             BackColor = Theme.Bg
             Font = Theme.FontBase
             DoubleBuffered = True
@@ -79,8 +88,67 @@ Namespace App
 
             AddHandler Shown, Sub(s, e)
                                   HandleStartupArgs()
+                                  RestoreLastFiles()
                                   RunAuditIfRequested()
                               End Sub
+        End Sub
+
+        ''' <summary>「启动时打开上次文件」：只恢复仍然存在的文件，缺的直接丢掉。</summary>
+        Private Sub RestoreLastFiles()
+            If Not Settings.Ui.ReopenLastFile Then Return
+            If _startupArgs IsNot Nothing AndAlso (Array.IndexOf(_startupArgs, "--audit") >= 0 OrElse
+                                                   Array.IndexOf(_startupArgs, "--sweep") >= 0) Then Return
+            Try
+                Dim st = AppUiState.Load()
+                If st.LastFiles Is Nothing OrElse st.LastFiles.Count = 0 Then Return
+                Dim alive = st.LastFiles.Where(Function(f) IO.File.Exists(f)).ToArray()
+                If alive.Length > 0 Then
+                    _stampPage.PrefillFiles(alive, "", Nothing, Nothing)
+                End If
+            Catch
+                ' 恢复失败不影响启动
+            End Try
+        End Sub
+
+        ''' <summary>
+        ''' ESC 取消：只在「进度 → ESC 键取消」开着、且当前页确实有任务在跑时吃掉按键，
+        ''' 否则照常传给下面的控件（不该因为按了 ESC 就什么都不响应）。
+        ''' </summary>
+        Protected Overrides Function ProcessCmdKey(ByRef msg As Message, keyData As Keys) As Boolean
+            If keyData = (Keys.Escape Or Keys.KeyCode) AndAlso Settings.Progress.CancelOnEsc Then
+                If _pages.ContainsKey(_current) Then
+                    Dim c = TryCast(_pages(_current), ICancelablePage)
+                    If c IsNot Nothing AndAlso c.CancelCurrent() Then Return True
+                End If
+            End If
+            Return MyBase.ProcessCmdKey(msg, keyData)
+        End Function
+
+        ''' <summary>关闭时按设置保存窗口位置与上次文件；任何一个开关关着就不写。</summary>
+        Protected Overrides Sub OnFormClosing(e As FormClosingEventArgs)
+            Try
+                Dim st = AppUiState.Load()
+                If Settings.Ui.RememberWindowBounds Then
+                    Dim b = If(WindowState = FormWindowState.Normal, Bounds, RestoreBounds)
+                    If b.Width >= 400 AndAlso b.Height >= 300 Then
+                        st.HasBounds = True
+                        st.X = b.X
+                        st.Y = b.Y
+                        st.Width = b.Width
+                        st.Height = b.Height
+                    End If
+                End If
+
+                If Settings.Ui.ReopenLastFile Then
+                    st.LastFiles = _stampPage.Files.ToList()
+                Else
+                    st.LastFiles.Clear()
+                End If
+                st.Save()
+            Catch
+                ' 状态存不下不影响退出
+            End Try
+            MyBase.OnFormClosing(e)
         End Sub
 
         ''' <summary>
@@ -1043,6 +1111,12 @@ Namespace App
     End Enum
 
     ''' <summary>页面统一接口：每次被切到前台时调用，用于刷新依赖外部状态的内容。</summary>
+    ''' <summary>能取消正在进行的耗时操作（ESC 键用）。</summary>
+    Friend Interface ICancelablePage
+        ''' <summary>有操作在跑就取消并返回 True；闲着返回 False。</summary>
+        Function CancelCurrent() As Boolean
+    End Interface
+
     Friend Interface IAppPage
         Sub OnShown()
         ''' <summary>窗口尺寸变化结束后，重新算一遍页面内部布局（拖动期间被冻结的那部分）。</summary>

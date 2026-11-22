@@ -107,6 +107,21 @@ Namespace App
             LayoutParts()
         End Sub
 
+        ''' <summary>
+        ''' 从外部触发取消（ESC 键走这里）。没在忙就返回 False，让按键继续往下传。
+        ''' </summary>
+        Friend Function CancelWork() As Boolean
+            If Not _busy Then Return False
+            Try
+                _cancelable.Cancel()
+                _cancelBtn.Enabled = False
+                _cancelBtn.Text = "正在取消…"
+                Return True
+            Catch
+                Return False
+            End Try
+        End Function
+
         ''' <summary>操作结束（成功/失败/取消都必须调用）。</summary>
         Friend Sub EndWork(Optional finalText As String = Nothing)
             _busy = False

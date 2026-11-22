@@ -19,6 +19,7 @@ Namespace App.Pages
     Friend NotInheritable Class MakeSealPage
         Inherits UserControl
         Implements IAppPage
+        Implements ICancelablePage
 
         Private ReadOnly _owner As MainForm
 
@@ -749,6 +750,12 @@ Namespace App.Pages
                 End Try
             Next
         End Sub
+
+        ''' <summary>ESC 取消：把取消请求交给进度条内置的取消令牌。</summary>
+        Friend Function CancelCurrent() As Boolean Implements ICancelablePage.CancelCurrent
+            If _progress Is Nothing Then Return False
+            Return _progress.CancelWork()
+        End Function
     End Class
 
 End Namespace

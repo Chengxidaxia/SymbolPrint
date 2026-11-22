@@ -23,6 +23,7 @@ Namespace App.Pages
     Friend NotInheritable Class StampPage
         Inherits UserControl
         Implements IAppPage
+        Implements ICancelablePage
 
         Private Const CardInner As Integer = 14
 
@@ -667,17 +668,75 @@ Namespace App.Pages
 
         Private Sub AddFiles(paths As IEnumerable(Of String))
             Dim added = 0
+            Dim bad = 0
+            Dim check = _owner.Settings.General.ValidateBeforeOpen
             For Each p In paths
                 If String.IsNullOrWhiteSpace(p) OrElse Not File.Exists(p) Then Continue For
                 If _files.Any(Function(x) String.Equals(x, p, StringComparison.OrdinalIgnoreCase)) Then Continue For
+                ' 「打开文件前校验」：结构明显损坏的文件直接挡在门外，
+                ' 免得盖章中途才发现写坏，那时原文件已经动过了
+                If check AndAlso Not LooksStructurallySound(p) Then
+                    bad += 1
+                    AppendLog($"× 跳过 {IO.Path.GetFileName(p)}：文件结构不完整（末尾缺少必要的结束标记）。")
+                    Continue For
+                End If
                 _files.Add(p)
                 added += 1
             Next
             If added > 0 Then
                 RefreshGrid()
-                AppendLog($"已加入 {added} 个文件，共 {_files.Count} 个。")
+                AppendLog($"已加入 {added} 个文件，共 {_files.Count} 个" & If(bad > 0, $"，跳过 {bad} 个损坏文件。", "。"))
+            ElseIf bad > 0 Then
+                AppendLog($"没有加入任何文件：{bad} 个文件结构不完整。")
             End If
         End Sub
+
+        ''' <summary>
+        ''' 轻量结构检查（只读文件头尾，不解析全文件）：
+        ''' ZIP 要有 EOCD、PDF 要有 %%EOF、7z 要有签名；其它类型交给魔数识别。
+        ''' </summary>
+        Private Shared Function LooksStructurallySound(path As String) As Boolean
+            Try
+                Dim kind = SymbolPrint.Core.Carriers.FileSniffer.KindOf(path)
+                Dim len As Long = New IO.FileInfo(path).Length
+                If len <= 0 Then Return False
+
+                Select Case kind
+                    Case SymbolPrint.Core.Carriers.ContainerKind.Zip
+                        ' EOCD 签名 PK\x05\x06 必须在最后 64KB 内
+                        Dim tailZip = SymbolPrint.Core.Carriers.CarrierExt.ReadTail(path, CInt(Math.Min(len, 65536)))
+                        For i = tailZip.Length - 4 To 0 Step -1
+                            If tailZip(i) = &H50 AndAlso tailZip(i + 1) = &H4B AndAlso
+                               tailZip(i + 2) = &H5 AndAlso tailZip(i + 3) = &H6 Then Return True
+                        Next
+                        Return False
+                    Case SymbolPrint.Core.Carriers.ContainerKind.Pdf
+                        Dim tailPdf = IO.File.ReadAllBytes(path) ' PDF 一般不大，整读更简单
+                        Dim marker = System.Text.Encoding.ASCII.GetBytes("%%EOF")
+                        For i = tailPdf.Length - marker.Length To 0 Step -1
+                            Dim hit = True
+                            For j = 0 To marker.Length - 1
+                                If tailPdf(i + j) <> marker(j) Then hit = False : Exit For
+                            Next
+                            If hit Then Return True
+                        Next
+                        Return False
+                    Case SymbolPrint.Core.Carriers.ContainerKind.Unknown
+                        Return True   ' 认不出类型的交给载体兜底，不在这里拦
+                    Case Else
+                        Return True   ' 有明确魔数（图片/7z/RTF/章）就认为结构可读
+                End Select
+            Catch
+                Return True
+            End Try
+        End Function
+
+        ''' <summary>当前待盖章文件（供「启动时打开上次文件」在关闭时保存）。</summary>
+        Friend ReadOnly Property Files As IReadOnlyList(Of String)
+            Get
+                Return _files
+            End Get
+        End Property
 
         Private Sub RemoveSelected()
             Dim idx = New List(Of Integer)()
@@ -1422,6 +1481,12 @@ Namespace App.Pages
 
         Public Sub OnShown() Implements IAppPage.OnShown
         End Sub
+
+        ''' <summary>ESC 取消：把取消请求交给进度条内置的取消令牌。</summary>
+        Friend Function CancelCurrent() As Boolean Implements ICancelablePage.CancelCurrent
+            If _progress Is Nothing Then Return False
+            Return _progress.CancelWork()
+        End Function
     End Class
 
 End Namespace

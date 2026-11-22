@@ -56,7 +56,7 @@ Namespace App.Pages
         ' 当前版本真正会读取的参数。其余为「预留」：配置文件里有，但没有任何代码读。
         ' 每接一个就加到这里，界面立刻从「预留」变成正常可调。
         Private Shared ReadOnly InEffectKeys As New HashSet(Of String)(StringComparer.Ordinal) From {
-            "General.AutoBackupOriginal", "General.BackupSuffix",
+            "General.AutoBackupOriginal", "General.BackupSuffix", "General.ValidateBeforeOpen",
             "Crypto.Pbkdf2Iterations", "Crypto.Curve",
             "Compression.BrotliQuality", "Compression.Algorithm",
             "Compression.SkipIfLarger", "Compression.SealBytesMax", "Compression.MinSizeToCompress",
@@ -70,8 +70,9 @@ Namespace App.Pages
             "Verify.CheckStampId", "Verify.CheckOwnHash",
             "Verify.ShowRawHex", "Verify.ReportFormat", "Verify.CopyReportToClipboard",
             "Progress.DelayMs", "Progress.ThrottleMs", "Progress.Enabled",
-            "Progress.ShowIndeterminate", "Progress.ShowBytesDetail",
+            "Progress.ShowIndeterminate", "Progress.ShowBytesDetail", "Progress.CancelOnEsc",
             "Ui.ShowStampDescription", "Ui.ShowAdvancedByDefault", "Ui.ConfirmBeforeOverwrite",
+            "Ui.RememberWindowBounds", "Ui.ReopenLastFile",
             "Carriers.PreferredOrder", "Carriers.ZipCommentMaxBytes",
             "Carriers.ZeroWidthPair", "Carriers.RtfGroupName"
         }
