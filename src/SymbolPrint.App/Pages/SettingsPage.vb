@@ -59,10 +59,11 @@ Namespace App.Pages
             "General.AutoBackupOriginal", "General.BackupSuffix",
             "Crypto.Pbkdf2Iterations", "Crypto.Curve",
             "Compression.BrotliQuality", "Compression.Algorithm",
-            "Compression.SkipIfLarger", "Compression.SealBytesMax",
+            "Compression.SkipIfLarger", "Compression.SealBytesMax", "Compression.MinSizeToCompress",
             "Image.OpacityPercent", "Image.RotationDegrees",
             "Verify.StrictMode", "Verify.WarnIfNoSeal", "Verify.CheckOriginalHash",
             "Verify.CheckStampId", "Verify.CheckOwnHash",
+            "Verify.ShowRawHex", "Verify.ReportFormat", "Verify.CopyReportToClipboard",
             "Progress.DelayMs", "Progress.ThrottleMs", "Progress.Enabled",
             "Progress.ShowIndeterminate", "Progress.ShowBytesDetail",
             "Ui.ShowStampDescription", "Ui.ShowAdvancedByDefault", "Ui.ConfirmBeforeOverwrite"
@@ -165,14 +166,12 @@ Namespace App.Pages
 
             Dim bar As New Panel() With {.Dock = DockStyle.Top, .Height = Theme.LineH + 14, .BackColor = Color.Transparent}
             _showAdvanced = New CheckBox() With {
-                .Text = "显示高级与预留参数", .AutoSize = True, .Left = 0, .Top = 2,
+                .Text = "显示高级参数", .AutoSize = True, .Left = 0, .Top = 2,
                 .ForeColor = Theme.TextSub
             }
             _tip.SetToolTip(_showAdvanced,
-                            "默认只列出会真正影响行为的常用参数。" & Environment.NewLine &
-                            "勾选后额外显示两类：" & Environment.NewLine &
-                            "  · 高级参数：会影响结果，但一般不需要动；" & Environment.NewLine &
-                            "  · 预留参数：配置里有、当前版本没有任何代码读取，改了不会生效。")
+                            "默认只列常用参数。勾选后显示高级参数——它们会影响结果，" & Environment.NewLine &
+                            "但一般不需要改（如迭代次数、备份后缀）。")
             AddHandler _showAdvanced.CheckedChanged, Sub(s, e)
                                                           If _suppressGroupEvent Then Return
                                                           _suppressGroupEvent = True
@@ -299,17 +298,13 @@ Namespace App.Pages
         ''' </summary>
         Private Sub RefreshGroups()
             Dim keep = _currentGroup
-            Dim showAll = _showAdvanced.Checked
+            Dim showAdv = _showAdvanced.Checked
 
             _groups.BeginUpdate()
             _groups.Items.Clear()
             For Each g In _groupOrder
-                Dim hasVisible As Boolean
-                If showAll Then
-                    hasVisible = _fields.Any(Function(f) f.Group = g)
-                Else
-                    hasVisible = _fields.Any(Function(f) f.Group = g AndAlso f.InEffect AndAlso Not f.Entry.Advanced)
-                End If
+                Dim hasVisible = _fields.Any(Function(f) f.Group = g AndAlso f.InEffect AndAlso
+                                                          (showAdv OrElse Not f.Entry.Advanced))
                 If hasVisible Then _groups.Items.Add(g)
             Next
             _groups.EndUpdate()
@@ -382,14 +377,16 @@ Namespace App.Pages
             ' 之前把 54 个「预留」字段一并铺出来，满屏都是「当前版本不读取」，
             ' 用户改了没效果还以为程序坏了——这比少显示几个参数糟得多。
             ' 勾上「显示预留参数」才会把它们放出来，并逐行标注。
-            Dim showAll = _showAdvanced.Checked
+            ' 只显示「真的会被读取」的参数：InEffect=False 的一律不出现。
+            ' 留着它们只会让人改了没效果、以为程序坏了。
+            Dim showAdv = _showAdvanced.Checked
             Dim items = _fields.Where(Function(f) f.Group = _currentGroup AndAlso
-                                                   (showAll OrElse (f.InEffect AndAlso Not f.Entry.Advanced))).ToList()
+                                                   f.InEffect AndAlso
+                                                   (showAdv OrElse Not f.Entry.Advanced)).ToList()
 
             If items.Count = 0 Then
                 Dim empty As New Label() With {
-                    .Text = "这个分组在当前设置下没有可调参数。" & Environment.NewLine &
-                            "若想看存在但尚未生效的字段，请勾选上方「显示预留参数」。",
+                    .Text = "这个分组在当前设置下没有可调参数。",
                     .ForeColor = Theme.TextFaint, .AutoSize = True, .Left = 4, .Top = 12
                 }
                 _host.Controls.Add(empty)

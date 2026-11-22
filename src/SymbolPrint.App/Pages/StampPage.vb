@@ -1177,6 +1177,7 @@ Namespace App.Pages
             ' 否则那几项就是"改了没效果"的假选项
             sealOpt.CompressionAlgorithm = CByte(cfg.Compression.Algorithm)
             sealOpt.SkipIfLarger = cfg.Compression.SkipIfLarger
+            sealOpt.MinSizeToCompress = cfg.Compression.MinSizeToCompress
             sealOpt.SealBytesMax = cfg.Compression.SealBytesMax
             sealOpt.Pbkdf2Iterations = cfg.Crypto.Pbkdf2Iterations
             ' 保留旧记录、直接追加：已盖章的文件当普通文件处理，不再自动换新章

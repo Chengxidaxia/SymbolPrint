@@ -269,6 +269,16 @@ Namespace App.Pages
             Try
                 Dim r = Await Task.Run(Function() SealService.Verify(target, seal, sink, _owner.Settings.Verify))
                 Render(r)
+
+                ' 「验章后复制报告」：格式与是否附哈希都按设置来，复制的是与界面同源的报告
+                If _owner.Settings.Verify.CopyReportToClipboard Then
+                    Try
+                        Clipboard.SetText(r.FormatReport(_owner.Settings.Verify.ReportFormat, _owner.Settings.Verify.ShowRawHex))
+                        AddDetail("报告", "已按设置复制到剪贴板（格式：" & _owner.Settings.Verify.ReportFormat & "）")
+                    Catch ex As Exception
+                        AddDetail("报告", "复制失败：" & ex.Message)
+                    End Try
+                End If
             Catch ex As OperationCanceledException
                 _banner.ShowResult(BannerKind.None, "已取消", "本次验证被中止。")
             Catch ex As Exception

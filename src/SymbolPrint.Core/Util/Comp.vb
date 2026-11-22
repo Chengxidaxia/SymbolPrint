@@ -77,9 +77,12 @@ Namespace Util
                              Optional sink As IProgressSink = Nothing,
                              Optional stage As String = "",
                              Optional algorithm As Byte = MethodBrotli,
-                             Optional skipIfLarger As Boolean = True) As (Method As Byte, Data As Byte())
+                             Optional skipIfLarger As Boolean = True,
+                             Optional minSizeToCompress As Integer = 0) As (Method As Byte, Data As Byte())
             ' 算法可由设置直接选「不压缩」：省 CPU，代价是记录变大
             If algorithm = MethodNone Then Return (MethodNone, data)
+            ' 小于门槛的数据压了也没意义（Brotli 自己还有几十字节头），直接原文
+            If minSizeToCompress > 0 AndAlso data.Length < minSizeToCompress Then Return (MethodNone, data)
 
             Dim c = BrotliCompress(data, quality, sink, stage)
             If c.Length = 0 Then Return (MethodNone, data)

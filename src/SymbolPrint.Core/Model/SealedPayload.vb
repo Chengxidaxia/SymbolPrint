@@ -21,8 +21,9 @@ Namespace Model
                                      Optional sink As IProgressSink = Nothing,
                                      Optional stage As String = "",
                                      Optional algorithm As Byte = Comp.MethodBrotli,
-                                     Optional skipIfLarger As Boolean = True) As Byte()
-            Dim p = Comp.Pack(recordRaw, quality, sink, stage, algorithm, skipIfLarger)
+                                     Optional skipIfLarger As Boolean = True,
+                                     Optional minSizeToCompress As Integer = 0) As Byte()
+            Dim p = Comp.Pack(recordRaw, quality, sink, stage, algorithm, skipIfLarger, minSizeToCompress)
             Dim w As New ByteWriter()
             w.WriteU8(p.Method)
             w.WriteU32(CUInt(recordRaw.Length))

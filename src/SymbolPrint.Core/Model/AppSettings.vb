@@ -195,16 +195,11 @@ Namespace Model
         <Setting("载体优先级", "载体", advanced:=True, help:="按顺序尝试；逗号分隔。")>
         Public Property PreferredOrder As String = "trailer,zip-comment,7z-tail,rtf-group,zero-width"
 
-        <Setting("允许重打包归档", "载体", advanced:=True,
-                 help:="ZIP 注释区塞不下时才用。会重写归档，需要原密码，且归档字节会变。")>
-        Public Property AllowRepackArchives As Boolean = True
 
         <Setting("ZIP 注释区上限", "载体", unit:="字节", minValue:=1024, maxValue:=65535, advanced:=True,
                  help:="ZIP 规范硬上限 65535，超了只能重打包。")>
         Public Property ZipCommentMaxBytes As Integer = 65535
 
-        <Setting("7-Zip 路径", "载体", advanced:=True, help:="留空自动探测（注册表/Program Files/环境变量）。")>
-        Public Property SevenZipExePath As String = ""
 
         <Setting("文本编码方案", "载体", choices:={"ZeroWidthBinary", "VariationSelectors", "AsciiWhitespace"},
                  help:="AsciiWhitespace 会破坏 Markdown 语义且会被编辑器 trim，慎用。")>

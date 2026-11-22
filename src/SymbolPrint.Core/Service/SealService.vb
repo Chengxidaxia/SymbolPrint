@@ -103,6 +103,8 @@ Namespace Service
         Public Property CompressionAlgorithm As Byte = Comp.MethodBrotli
         ''' <summary>压缩后反而更大时是否退回原文。</summary>
         Public Property SkipIfLarger As Boolean = True
+        ''' <summary>小于该字节数就不压缩（Brotli 头本身就有几十字节）。</summary>
+        Public Property MinSizeToCompress As Integer = 256
         ''' <summary>章字节上限（超过就拒绝盖章，避免把超大记录写进别人的文件）。</summary>
         Public Property SealBytesMax As Long = 64L * 1024 * 1024
         ''' <summary>章字节指纹（PBKDF2）迭代次数。</summary>
@@ -240,7 +242,19 @@ Namespace Service
             End Get
         End Property
 
-        Public Function FormatReport() As String
+        ''' <summary>
+        ''' 生成报告。format: Text / Markdown / Json；showRawHex 为真时附完整哈希。
+        ''' 三种格式由同一份数据渲染，字段一致，不会出现"界面有、导出没有"。
+        ''' </summary>
+        Public Function FormatReport(Optional format As String = "Text",
+                                     Optional showRawHex As Boolean = False) As String
+            Dim fmt = If(format, "Text").Trim().ToLowerInvariant()
+            If fmt = "json" Then Return ReportJson(showRawHex)
+            If fmt = "markdown" Then Return ReportMarkdown(showRawHex)
+            Return ReportText(showRawHex)
+        End Function
+
+        Private Function ReportText(showRawHex As Boolean) As String
             Dim w As New Text.StringBuilder()
             w.AppendLine($"印章状态：{Title}")
             w.AppendLine($"载体：{CarrierName}（{CarrierId}）  记录长度：{BlobLength} 字节")
@@ -252,19 +266,101 @@ Namespace Service
                     If Not String.IsNullOrEmpty(StampDescription) Then w.AppendLine($"章描述：{StampDescription}")
                     w.AppendLine($"章字节：{SealBytesLength} 字节")
                 End If
+                If showRawHex AndAlso Not String.IsNullOrEmpty(OriginalHashHex) Then
+                    w.AppendLine($"原文件 SHA3-512：{OriginalHashHex}")
+                End If
             End If
             w.AppendLine()
             For Each c In Checks
-                Dim mark As String
-                Select Case c.State
-                    Case SealPartState.Ok : mark = "[通过]"
-                    Case SealPartState.Failed : mark = "[失败]"
-                    Case SealPartState.Warning : mark = "[注意]"
-                    Case Else : mark = "[跳过]"
-                End Select
-                w.AppendLine($"{mark} {c.Part}：{c.Message}")
+                w.AppendLine($"{MarkText(c.State)} {c.Part}：{c.Message}")
             Next
             Return w.ToString()
+        End Function
+
+        Private Function ReportMarkdown(showRawHex As Boolean) As String
+            Dim w As New Text.StringBuilder()
+            w.AppendLine($"# SymbolPrint 验章报告 — {Title}")
+            w.AppendLine()
+            w.AppendLine($"- 载体：{CarrierName}（{CarrierId}）")
+            w.AppendLine($"- 记录长度：{BlobLength} 字节")
+            If HasRecord Then
+                w.AppendLine($"- 记录版本：v{RecordVersion}")
+                w.AppendLine($"- 盖章时间：{If(StampTime.HasValue, StampTime.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"), "—")}")
+                w.AppendLine($"- 章指纹：{StampIdShort}")
+                If StampProvided Then w.AppendLine($"- 章名称：{StampLabel}")
+                If showRawHex AndAlso Not String.IsNullOrEmpty(OriginalHashHex) Then
+                    w.AppendLine($"- 原文件 SHA3-512：`{OriginalHashHex}`")
+                End If
+            End If
+            w.AppendLine()
+            w.AppendLine("| 结果 | 检查项 | 说明 |")
+            w.AppendLine("| --- | --- | --- |")
+            For Each c In Checks
+                w.AppendLine($"| {MarkText(c.State)} | {c.Part} | {c.Message.Replace("|", "\|")} |")
+            Next
+            Return w.ToString()
+        End Function
+
+        Private Function ReportJson(showRawHex As Boolean) As String
+            Dim w As New Text.StringBuilder()
+            w.Append("{""title"":").Append(JsonStr(Title))
+            w.Append(",""carrier"":").Append(JsonStr(CarrierName)).Append(",""carrierId"":").Append(JsonStr(CarrierId))
+            w.Append(",""blobLength"":").Append(BlobLength)
+            w.Append(",""hasRecord"":").Append(If(HasRecord, "true", "false"))
+            If HasRecord Then
+                w.Append(",""recordVersion"":").Append(RecordVersion)
+                w.Append(",""stampTime"":").Append(If(StampTime.HasValue, JsonStr(StampTime.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")), "null"))
+                w.Append(",""stampId"":").Append(JsonStr(StampIdShort))
+                If showRawHex AndAlso Not String.IsNullOrEmpty(OriginalHashHex) Then
+                    w.Append(",""originalHash"":").Append(JsonStr(OriginalHashHex))
+                End If
+            End If
+            w.Append(",""checks"":[")
+            For i = 0 To Checks.Count - 1
+                Dim c = Checks(i)
+                If i > 0 Then w.Append(",")
+                w.Append("{""part"":").Append(JsonStr(c.Part))
+                w.Append(",""state"":").Append(JsonStr(c.State.ToString()))
+                w.Append(",""message"":").Append(JsonStr(c.Message)).Append("}")
+            Next
+            w.Append("]}")
+            Return w.ToString()
+        End Function
+
+        Private Shared Function MarkText(st As SealPartState) As String
+            Select Case st
+                Case SealPartState.Ok : Return "[通过]"
+                Case SealPartState.Failed : Return "[失败]"
+                Case SealPartState.Warning : Return "[注意]"
+                Case Else : Return "[跳过]"
+            End Select
+        End Function
+
+        Private Shared Function JsonStr(v As String) As String
+            If v Is Nothing Then Return "null"
+            Dim sb As New Text.StringBuilder("""")
+            For Each ch As Char In v
+                Select Case ch
+                    Case """"c
+                        sb.Append("\""")
+                    Case "\"c
+                        sb.Append("\\")
+                    Case ChrW(10)
+                        sb.Append("\n")
+                    Case ChrW(13)
+                        sb.Append("\r")
+                    Case ChrW(9)
+                        sb.Append("\t")
+                    Case Else
+                        If AscW(ch) < 32 Then
+                            sb.Append("\u").Append(AscW(ch).ToString("x4"))
+                        Else
+                            sb.Append(ch)
+                        End If
+                End Select
+            Next
+            sb.Append("""")
+            Return sb.ToString()
         End Function
 
     End Class
@@ -394,7 +490,8 @@ Namespace Service
                 ' 8) 压缩 + 信封
                 Dim payload = SealedPayload.Build(raw, options.BrotliQuality,
                                                   scope.Slice(0.65, 0.85, "压缩盖章记录"),
-                                                  "", options.CompressionAlgorithm, options.SkipIfLarger)
+                                                  "", options.CompressionAlgorithm, options.SkipIfLarger,
+                                                  options.MinSizeToCompress)
                 Dim blob = SealEnvelope.Build(payload, SealRecord.Version)
                 res.BlobLength = blob.Length
 
