@@ -50,6 +50,19 @@ Namespace Visual
         ''' <summary>SVG 光栅化时是否保留透明背景。</summary>
         Public Property TransparentBackground As Boolean = True
 
+        ' ---- PDF 侧（来自「高级设置 → PDF」）----
+        ''' <summary>页码范围：all / first / 1,3-5。空或 all 时按 PdfPage 的语义（0=全部）。</summary>
+        Public Property PdfPageSelection As String = "all"
+        ''' <summary>图案宽度（mm）。0 表示仍用 WidthRatio。</summary>
+        Public Property PdfWidthMm As Double = 0
+        Public Property PdfAnchor As Model.ImageAnchor = Model.ImageAnchor.Custom
+        Public Property PdfOffsetXMm As Double = 0
+        Public Property PdfOffsetYMm As Double = 0
+        ''' <summary>嵌入图案的有效 DPI：越高手越"实"，PDF 体积也越大。</summary>
+        Public Property PdfDpi As Integer = 200
+        ''' <summary>True = 画在页面内容之下（不遮正文）。</summary>
+        Public Property BehindContent As Boolean = False
+
         Public Function HasImage() As Boolean
             Return (PngBytes IsNot Nothing AndAlso PngBytes.Length > 0) OrElse Not String.IsNullOrWhiteSpace(SvgMarkup)
         End Function
@@ -325,34 +338,72 @@ Namespace Visual
             Using doc = PdfSharp.Pdf.IO.PdfReader.Open(filePath, PdfSharp.Pdf.IO.PdfDocumentOpenMode.Modify)
                 Dim pages = doc.Pages
                 res.PageCount = pages.Count
-                Dim first As Integer = If(mark.PdfPage <= 0, 1, mark.PdfPage)
-                Dim last As Integer = If(mark.PdfPage <= 0, pages.Count, Math.Min(mark.PdfPage, pages.Count))
-                If first > pages.Count Then first = pages.Count
+                If pages.Count = 0 Then
+                    res.Reason = "PDF 没有页面。"
+                    Return res
+                End If
 
-                Dim pngWithAlpha = ApplyOpacityToPng(png, mark.Opacity)
+                ' 页码范围：PageSelection 优先（all / first / 1,3-5），否则沿用 PdfPage（0=全部）
+                Dim targets = ParsePageSelection(mark.PdfPageSelection, pages.Count, mark.PdfPage)
+                If targets.Count = 0 Then
+                    res.Reason = $"页码范围「{mark.PdfPageSelection}」没有命中任何页面（共 {pages.Count} 页）。"
+                    Return res
+                End If
+
+                Dim firstPage = pages(targets(0) - 1)
+                Dim pw0 = firstPage.Width.Point
+                Dim mw = If(mark.PdfWidthMm > 0, mark.PdfWidthMm * 2.834645669, pw0 * Clamp01(mark.WidthRatio))
+                Dim ratioImg = 1.0
+                Using probe As New MemoryStream(png)
+                    Using im = PdfSharp.Drawing.XImage.FromStream(probe)
+                        If im.PixelWidth > 0 Then ratioImg = im.PixelHeight / CDbl(im.PixelWidth)
+                    End Using
+                End Using
+
+                ' DPI 决定嵌入图的像素密度（pt → px），高了更清晰、体积更大
+                Dim dpi = Math.Max(72, Math.Min(1200, mark.PdfDpi))
+                Dim wantPx = Math.Max(32, CInt(Math.Round(mw / 72.0 * dpi)))
+                Dim pngHi = If(mark.PngBytes IsNot Nothing AndAlso mark.PngBytes.Length > 0,
+                               mark.PngBytes,
+                               RenderSvgToPng(mark.SvgMarkup, wantPx, mark.TransparentBackground))
+                Dim pngWithAlpha = ApplyOpacityToPng(pngHi, mark.Opacity)
+
+                Dim opt = If(mark.BehindContent,
+                             PdfSharp.Drawing.XGraphicsPdfPageOptions.Prepend,
+                             PdfSharp.Drawing.XGraphicsPdfPageOptions.Append)
+
                 Using ms As New MemoryStream(pngWithAlpha)
                     Using img = PdfSharp.Drawing.XImage.FromStream(ms)
-                        For p = first To last
+                        For Each p In targets
                             ProgressExt.ThrowIfCancelled(sink)
                             Dim page = pages(p - 1)
                             Dim pw = page.Width.Point
                             Dim ph = page.Height.Point
-                            Dim mw = pw * Clamp01(mark.WidthRatio)
-                            Dim mh = mw * img.PixelHeight / img.PixelWidth
-                            Dim mx = pw * Clamp01(mark.XRatio)
-                            Dim my = ph * Clamp01(mark.YRatio)
-                            If mx + mw > pw Then mx = Math.Max(0, pw - mw)
-                            If my + mh > ph Then my = Math.Max(0, ph - mh)
+                            Dim w = Math.Min(mw, pw)
+                            Dim h = w * ratioImg
 
-                            Using gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(page, PdfSharp.Drawing.XGraphicsPdfPageOptions.Append)
+                            Dim mx, my As Double
+                            If mark.PdfAnchor = Model.ImageAnchor.Custom Then
+                                mx = pw * Clamp01(mark.XRatio)
+                                my = ph * Clamp01(mark.YRatio)
+                            Else
+                                Dim pt = AnchorPointPt(mark.PdfAnchor, pw, ph, w, h, mark.MarginPx,
+                                                       mark.PdfOffsetXMm, mark.PdfOffsetYMm)
+                                mx = pt.X
+                                my = pt.Y
+                            End If
+                            If mx + w > pw Then mx = Math.Max(0, pw - w)
+                            If my + h > ph Then my = Math.Max(0, ph - h)
+
+                            Using gfx = PdfSharp.Drawing.XGraphics.FromPdfPage(page, opt)
                                 Dim st = gfx.Save()
-                                gfx.TranslateTransform(mx + mw / 2.0, my + mh / 2.0)
+                                gfx.TranslateTransform(mx + w / 2.0, my + h / 2.0)
                                 gfx.RotateTransform(mark.RotationDegrees)
-                                gfx.TranslateTransform(-(mx + mw / 2.0), -(my + mh / 2.0))
-                                gfx.DrawImage(img, mx, my, mw, mh)
+                                gfx.TranslateTransform(-(mx + w / 2.0), -(my + h / 2.0))
+                                gfx.DrawImage(img, mx, my, w, h)
                                 gfx.Restore(st)
                             End Using
-                            res.MarkedWidthPx = CInt(Math.Round(mw))
+                            res.MarkedWidthPx = CInt(Math.Round(w))
                         Next
                     End Using
                 End Using
@@ -363,8 +414,89 @@ Namespace Visual
             File.Copy(tmp, filePath, True)
             File.Delete(tmp)
             res.Applied = True
-            log?.Invoke($"已在 PDF 第 {If(mark.PdfPage <= 0, "全部", mark.PdfPage.ToString())} 页绘制章图案（{res.MarkedWidthPx} pt 宽）。")
+            log?.Invoke($"已在 {res.PageCount} 页的 PDF 上绘制章图案（{If(mark.BehindContent, "内容之下", "内容之上")}）。")
             Return res
+        End Function
+
+        ''' <summary>
+        ''' 解析页码范围：all / first / 1,3-5 / 2- / -3。
+        ''' 解析不出时退回 PdfPage 的旧语义（0=全部），老调用方行为不变。
+        ''' </summary>
+        Public Function ParsePageSelection(sel As String, pageCount As Integer, fallbackPage As Integer) As List(Of Integer)
+            Dim list As New List(Of Integer)()
+            Dim t = If(sel, "").Trim().ToLowerInvariant()
+            If t = "" Then
+                If fallbackPage <= 0 Then
+                    For i = 1 To pageCount
+                        list.Add(i)
+                    Next
+                Else
+                    list.Add(Math.Max(1, Math.Min(fallbackPage, pageCount)))
+                End If
+                Return list
+            End If
+            If t = "all" Then
+                For i = 1 To pageCount
+                    list.Add(i)
+                Next
+                Return list
+            End If
+            If t = "first" Then
+                list.Add(1)
+                Return list
+            End If
+
+            For Each part In t.Split(","c)
+                Dim seg = part.Trim()
+                If seg.Length = 0 Then Continue For
+                Dim dash = seg.IndexOf("-"c)
+                If dash < 0 Then
+                    Dim n As Integer
+                    If Integer.TryParse(seg, n) AndAlso n >= 1 AndAlso n <= pageCount AndAlso Not list.Contains(n) Then list.Add(n)
+                Else
+                    Dim aTxt = seg.Substring(0, dash).Trim()
+                    Dim bTxt = seg.Substring(dash + 1).Trim()
+                    Dim a As Integer = 1
+                    Dim b As Integer = pageCount
+                    If aTxt <> "" AndAlso Not Integer.TryParse(aTxt, a) Then Continue For
+                    If bTxt <> "" AndAlso Not Integer.TryParse(bTxt, b) Then Continue For
+                    If a < 1 Then a = 1
+                    If b > pageCount Then b = pageCount
+                    For i = a To b
+                        If Not list.Contains(i) Then list.Add(i)
+                    Next
+                End If
+            Next
+            list.Sort()
+            Return list
+        End Function
+
+        ''' <summary>PDF 坐标是 pt，偏移单位是 mm，这里统一换算后再套锚点。</summary>
+        Private Function AnchorPointPt(anchor As Model.ImageAnchor, pw As Double, ph As Double,
+                                       w As Double, h As Double, marginPx As Integer,
+                                       offXMm As Double, offYMm As Double) As Drawing.PointF
+            Dim mm = 2.834645669
+            Dim offX = offXMm * mm
+            Dim offY = offYMm * mm
+            Dim m = marginPx * 0.75
+            Dim x, y As Double
+            Select Case anchor
+                Case Model.ImageAnchor.TopLeft, Model.ImageAnchor.MiddleLeft, Model.ImageAnchor.BottomLeft
+                    x = m + offX
+                Case Model.ImageAnchor.TopRight, Model.ImageAnchor.MiddleRight, Model.ImageAnchor.BottomRight
+                    x = pw - w - m - offX
+                Case Else
+                    x = (pw - w) / 2.0 + offX
+            End Select
+            Select Case anchor
+                Case Model.ImageAnchor.TopLeft, Model.ImageAnchor.TopCenter, Model.ImageAnchor.TopRight
+                    y = m + offY
+                Case Model.ImageAnchor.BottomLeft, Model.ImageAnchor.BottomCenter, Model.ImageAnchor.BottomRight
+                    y = ph - h - m - offY
+                Case Else
+                    y = (ph - h) / 2.0 + offY
+            End Select
+            Return New Drawing.PointF(CSng(x), CSng(y))
         End Function
 
         ''' <summary>把不透明度烘进 PNG 的 alpha 通道（PDF 绘制路径无法直接指定透明度）。</summary>

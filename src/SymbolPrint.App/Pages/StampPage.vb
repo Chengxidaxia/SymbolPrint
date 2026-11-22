@@ -1278,6 +1278,16 @@ Namespace App.Pages
             m.JpegQuality = img.JpegQuality
             m.TransparentBackground = img.TransparentBackground
 
+            ' 「高级设置 → PDF」：页码集合、mm 宽度、PDF 锚点/偏移、图层顺序、嵌入 DPI
+            Dim pdf = _owner.Settings.Pdf
+            m.PdfPageSelection = pdf.PageSelection
+            m.PdfWidthMm = pdf.WidthMm
+            m.PdfAnchor = pdf.Anchor
+            m.PdfOffsetXMm = pdf.OffsetXMm
+            m.PdfOffsetYMm = pdf.OffsetYMm
+            m.PdfDpi = pdf.Dpi
+            m.BehindContent = pdf.BehindContent
+
             If String.IsNullOrWhiteSpace(src) OrElse src = "（使用章内图案）" Then
                 If _seal IsNot Nothing AndAlso _seal.HasSvg Then
                     m.SvgMarkup = _seal.SvgMarkup

@@ -274,8 +274,9 @@ Namespace Model
         Public Property WidthMm As Double = 40.0
 
         <Setting("锚点", "PDF",
-                 choices:={"TopLeft", "TopCenter", "TopRight", "MiddleLeft", "Center", "MiddleRight", "BottomLeft", "BottomCenter", "BottomRight", "Custom"})>
-        Public Property Anchor As ImageAnchor = ImageAnchor.BottomRight
+                 choices:={"Custom", "TopLeft", "TopCenter", "TopRight", "MiddleLeft", "Center", "MiddleRight", "BottomLeft", "BottomCenter", "BottomRight"},
+                 help:="Custom 表示沿用界面上的百分比定位；选具体锚点后按「锚点 + 偏移(mm)」计算。")>
+        Public Property Anchor As ImageAnchor = ImageAnchor.Custom
 
         <Setting("水平偏移", "PDF", unit:="mm", minValue:=-500, maxValue:=500, advanced:=True)>
         Public Property OffsetXMm As Double = 10.0
@@ -283,15 +284,9 @@ Namespace Model
         <Setting("垂直偏移", "PDF", unit:="mm", minValue:=-500, maxValue:=500, advanced:=True)>
         Public Property OffsetYMm As Double = 10.0
 
-        <Setting("不透明度", "PDF", unit:="%", minValue:=1, maxValue:=100)>
-        Public Property OpacityPercent As Integer = 100
-
         <Setting("置于内容之下", "PDF", advanced:=True, help:="避免遮挡正文。")>
         Public Property BehindContent As Boolean = False
 
-        <Setting("增量更新写入", "PDF", advanced:=True,
-                 help:="开启后只追加新版本对象，不重写原始内容流 —— 最安全，兼容性略低。")>
-        Public Property IncrementalUpdate As Boolean = True
     End Class
 
     Public Class VerifyOptions
@@ -451,7 +446,6 @@ Namespace Model
             Image.MarginPx = Clamp(Image.MarginPx, 0, 2000)
 
             Pdf.Dpi = Clamp(Pdf.Dpi, 72, 1200)
-            Pdf.OpacityPercent = Clamp(Pdf.OpacityPercent, 1, 100)
             If Pdf.WidthMm <= 0 Then Pdf.WidthMm = 40.0
 
             Progress.DelayMs = Clamp(Progress.DelayMs, 0, 5000)

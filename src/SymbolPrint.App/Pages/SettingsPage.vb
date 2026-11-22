@@ -64,6 +64,8 @@ Namespace App.Pages
             "Image.Anchor", "Image.OffsetXPx", "Image.OffsetYPx", "Image.MarginPx",
             "Image.MaxWidthPx", "Image.MaxHeightPx", "Image.AntiAlias",
             "Image.JpegQuality", "Image.TransparentBackground",
+            "Pdf.PageSelection", "Pdf.Dpi", "Pdf.WidthMm", "Pdf.Anchor",
+            "Pdf.OffsetXMm", "Pdf.OffsetYMm", "Pdf.BehindContent",
             "Verify.StrictMode", "Verify.WarnIfNoSeal", "Verify.CheckOriginalHash",
             "Verify.CheckStampId", "Verify.CheckOwnHash",
             "Verify.ShowRawHex", "Verify.ReportFormat", "Verify.CopyReportToClipboard",
