@@ -31,6 +31,25 @@ Namespace Visual
         ''' <summary>PDF 从 1 开始的页码（图片忽略）。0 表示全部页面。</summary>
         Public Property PdfPage As Integer = 1
 
+        ' ---- 以下来自「高级设置 → 图案 / PDF」。锚点为 Custom 时仍按 XRatio/YRatio 定位，
+        '      否则按「锚点 + 边距 + 偏移」在真实尺寸上算绝对坐标（设置才会真的生效）。----
+        Public Property Anchor As Model.ImageAnchor = Model.ImageAnchor.Custom
+        Public Property OffsetXPx As Integer = 0
+        Public Property OffsetYPx As Integer = 0
+        Public Property MarginPx As Integer = 0
+        ''' <summary>章图案宽度上限（px）。0 表示不限制。</summary>
+        Public Property MaxWidthPx As Integer = 0
+        ''' <summary>章图案高度上限（px）。0 表示不限制。</summary>
+        Public Property MaxHeightPx As Integer = 0
+        ''' <summary>是否抗锯齿；关掉后边缘会有锯齿，但老机器更快。</summary>
+        Public Property AntiAlias As Boolean = True
+        ''' <summary>JPEG 重编码质量（1–100）。</summary>
+        Public Property JpegQuality As Integer = 92
+        ''' <summary>渲染 DPI（PDF 用）。</summary>
+        Public Property Dpi As Integer = 300
+        ''' <summary>SVG 光栅化时是否保留透明背景。</summary>
+        Public Property TransparentBackground As Boolean = True
+
         Public Function HasImage() As Boolean
             Return (PngBytes IsNot Nothing AndAlso PngBytes.Length > 0) OrElse Not String.IsNullOrWhiteSpace(SvgMarkup)
         End Function
@@ -95,11 +114,12 @@ Namespace Visual
         ''' <summary>取得章图案位图：优先用预渲染的 PNG，否则把 SVG 光栅化。</summary>
         Public Function GetMarkPng(mark As VisualMark, Optional targetWidthPx As Integer = 512) As Byte()
             If mark.PngBytes IsNot Nothing AndAlso mark.PngBytes.Length > 0 Then Return mark.PngBytes
-            Return RenderSvgToPng(mark.SvgMarkup, targetWidthPx)
+            Return RenderSvgToPng(mark.SvgMarkup, targetWidthPx, mark.TransparentBackground)
         End Function
 
         ''' <summary>SVG → PNG（透明背景）。文字类特性依赖字体与渲染器，复杂滤镜可能被简化。</summary>
-        Public Function RenderSvgToPng(svgMarkup As String, widthPx As Integer) As Byte()
+        Public Function RenderSvgToPng(svgMarkup As String, widthPx As Integer,
+                                       Optional transparent As Boolean = True) As Byte()
             If String.IsNullOrWhiteSpace(svgMarkup) Then Throw New ArgumentException("SVG 内容为空。", NameOf(svgMarkup))
             If widthPx < 16 Then widthPx = 16
 
@@ -117,9 +137,23 @@ Namespace Visual
             doc.Height = heightPx
 
             Using bmp As Bitmap = doc.Draw(widthPx, heightPx)
-                Using ms As New MemoryStream()
-                    bmp.Save(ms, ImageFormat.Png)
-                    Return ms.ToArray()
+                If transparent Then
+                    Using ms As New MemoryStream()
+                        bmp.Save(ms, ImageFormat.Png)
+                        Return ms.ToArray()
+                    End Using
+                End If
+
+                ' 背景透明关掉：先铺白底再叠图案，这样盖到深色底图上不会有"半透明黑边"
+                Using flat As New Bitmap(bmp.Width, bmp.Height, PixelFormat.Format32bppArgb)
+                    Using g = Graphics.FromImage(flat)
+                        g.Clear(Color.White)
+                        g.DrawImage(bmp, New Rectangle(0, 0, bmp.Width, bmp.Height))
+                    End Using
+                    Using ms As New MemoryStream()
+                        flat.Save(ms, ImageFormat.Png)
+                        Return ms.ToArray()
+                    End Using
                 End Using
             End Using
         End Function
@@ -139,10 +173,24 @@ Namespace Visual
                         Dim w = src.Width
                         Dim h = src.Height
                         Dim markW = Math.Max(8, CInt(Math.Round(w * Clamp01(mark.WidthRatio))))
+                        ' 「最大宽度/高度」是硬上限：超过就等比缩小，避免章盖满整张图
+                        If mark.MaxWidthPx > 0 AndAlso markW > mark.MaxWidthPx Then markW = mark.MaxWidthPx
                         Using markBmp = MakeMarkBitmap(png, markW, mark.Opacity)
                             Dim markH = markBmp.Height
-                            Dim x = CInt(Math.Round(w * Clamp01(mark.XRatio)))
-                            Dim y = CInt(Math.Round(h * Clamp01(mark.YRatio)))
+                            If mark.MaxHeightPx > 0 AndAlso markH > mark.MaxHeightPx Then
+                                markH = mark.MaxHeightPx
+                                markW = Math.Max(8, CInt(Math.Round(markH * (markBmp.Width / CDbl(markBmp.Height)))))
+                            End If
+
+                            Dim x, y As Integer
+                            If mark.Anchor = Model.ImageAnchor.Custom Then
+                                x = CInt(Math.Round(w * Clamp01(mark.XRatio)))
+                                y = CInt(Math.Round(h * Clamp01(mark.YRatio)))
+                            Else
+                                Dim pos = AnchorPoint(mark.Anchor, w, h, markW, markH, mark.MarginPx, mark.OffsetXPx, mark.OffsetYPx)
+                                x = pos.X
+                                y = pos.Y
+                            End If
                             ' 位置越界时贴边，不裁掉章
                             If x + markW > w Then x = Math.Max(0, w - markW)
                             If y + markH > h Then y = Math.Max(0, h - markH)
@@ -152,7 +200,7 @@ Namespace Visual
                                     g.CompositingQuality = CompositingQuality.HighQuality
                                     g.InterpolationMode = InterpolationMode.HighQualityBicubic
                                     g.PixelOffsetMode = PixelOffsetMode.HighQuality
-                                    g.SmoothingMode = SmoothingMode.AntiAlias
+                                    g.SmoothingMode = If(mark.AntiAlias, SmoothingMode.AntiAlias, SmoothingMode.None)
                                     g.DrawImage(src, New Rectangle(0, 0, w, h))
 
                                     If Math.Abs(mark.RotationDegrees) > 0.01 Then
@@ -176,7 +224,17 @@ Namespace Visual
 
                                 ' 先写临时文件再替换，避免写一半把原图弄坏
                                 Dim tmp = filePath & ".sp-tmp"
-                                dst.Save(tmp, fmt)
+                                If fmt Is ImageFormat.Jpeg Then
+                                    Dim enc = Imaging.ImageCodecInfo.GetImageEncoders().
+                                        First(Function(c) c.FormatID = ImageFormat.Jpeg.Guid)
+                                    Using cp As New Imaging.EncoderParameters(1)
+                                        cp.Param(0) = New Imaging.EncoderParameter(Imaging.Encoder.Quality,
+                                                                                   CLng(Math.Max(1, Math.Min(100, mark.JpegQuality))))
+                                        dst.Save(tmp, enc, cp)
+                                    End Using
+                                Else
+                                    dst.Save(tmp, fmt)
+                                End If
                                 File.Copy(tmp, filePath, True)
                                 File.Delete(tmp)
                             End Using
@@ -188,6 +246,35 @@ Namespace Visual
                 End Using
             End SyncLock
             Return res
+        End Function
+
+        ''' <summary>
+        ''' 按锚点算出图案左上角坐标：边距是"离边缘固定距离"，偏移是在此基础上再挪。
+        ''' 锚点来自「高级设置 → 图案 → 默认锚点」，改了立刻影响贴图位置。
+        ''' </summary>
+        Private Function AnchorPoint(anchor As Model.ImageAnchor, w As Integer, h As Integer,
+                                     markW As Integer, markH As Integer,
+                                     margin As Integer, offX As Integer, offY As Integer) As Drawing.Point
+            Dim m = Math.Max(0, margin)
+            Dim x, y As Integer
+            Select Case anchor
+                Case Model.ImageAnchor.TopLeft, Model.ImageAnchor.MiddleLeft, Model.ImageAnchor.BottomLeft
+                    x = m + offX
+                Case Model.ImageAnchor.TopRight, Model.ImageAnchor.MiddleRight, Model.ImageAnchor.BottomRight
+                    x = w - markW - m - offX
+                Case Else
+                    x = (w - markW) \ 2 + offX
+            End Select
+
+            Select Case anchor
+                Case Model.ImageAnchor.TopLeft, Model.ImageAnchor.TopCenter, Model.ImageAnchor.TopRight
+                    y = m + offY
+                Case Model.ImageAnchor.BottomLeft, Model.ImageAnchor.BottomCenter, Model.ImageAnchor.BottomRight
+                    y = h - markH - m - offY
+                Case Else
+                    y = (h - markH) \ 2 + offY
+            End Select
+            Return New Drawing.Point(x, y)
         End Function
 
         Private Function MakeMarkBitmap(png As Byte(), widthPx As Integer, opacity As Double) As Bitmap

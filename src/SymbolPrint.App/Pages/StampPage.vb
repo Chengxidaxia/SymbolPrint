@@ -1265,6 +1265,19 @@ Namespace App.Pages
             m.RotationDegrees = CDbl(_rotate.Value)
             m.PdfPage = CInt(_page.Value)
 
+            ' 「高级设置 → 图案」的默认锚点/偏移/上限/编码参数在这里落到贴图模型上。
+            ' Anchor=Custom 时仍用上面的百分比定位，所以默认行为不变。
+            Dim img = _owner.Settings.Image
+            m.Anchor = img.Anchor
+            m.OffsetXPx = img.OffsetXPx
+            m.OffsetYPx = img.OffsetYPx
+            m.MarginPx = img.MarginPx
+            m.MaxWidthPx = img.MaxWidthPx
+            m.MaxHeightPx = img.MaxHeightPx
+            m.AntiAlias = img.AntiAlias
+            m.JpegQuality = img.JpegQuality
+            m.TransparentBackground = img.TransparentBackground
+
             If String.IsNullOrWhiteSpace(src) OrElse src = "（使用章内图案）" Then
                 If _seal IsNot Nothing AndAlso _seal.HasSvg Then
                     m.SvgMarkup = _seal.SvgMarkup

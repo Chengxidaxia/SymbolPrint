@@ -220,9 +220,6 @@ Namespace Model
     End Class
 
     Public Class ImageOptions
-        <Setting("渲染 DPI", "图案", unit:="DPI", minValue:=72, maxValue:=1200)>
-        Public Property Dpi As Integer = 300
-
         <Setting("最大宽度", "图案", unit:="px", minValue:=16, maxValue:=20000)>
         Public Property MaxWidthPx As Integer = 1200
 
@@ -233,8 +230,9 @@ Namespace Model
         Public Property OpacityPercent As Integer = 100
 
         <Setting("默认锚点", "图案",
-                 choices:={"TopLeft", "TopCenter", "TopRight", "MiddleLeft", "Center", "MiddleRight", "BottomLeft", "BottomCenter", "BottomRight", "Custom"})>
-        Public Property Anchor As ImageAnchor = ImageAnchor.BottomRight
+                 choices:={"Custom", "TopLeft", "TopCenter", "TopRight", "MiddleLeft", "Center", "MiddleRight", "BottomLeft", "BottomCenter", "BottomRight"},
+                 help:="Custom 表示沿用界面上的百分比定位；选具体锚点后改为「锚点 + 边距 + 偏移」计算。")>
+        Public Property Anchor As ImageAnchor = ImageAnchor.Custom
 
         <Setting("水平偏移", "图案", unit:="px", minValue:=-20000, maxValue:=20000, advanced:=True)>
         Public Property OffsetXPx As Integer = 24
@@ -448,7 +446,6 @@ Namespace Model
             Carriers.ZipCommentMaxBytes = Clamp(Carriers.ZipCommentMaxBytes, 1024, 65535)
             If String.IsNullOrEmpty(Carriers.RtfGroupName) Then Carriers.RtfGroupName = "symprint"
 
-            Image.Dpi = Clamp(Image.Dpi, 72, 1200)
             Image.OpacityPercent = Clamp(Image.OpacityPercent, 1, 100)
             Image.JpegQuality = Clamp(Image.JpegQuality, 1, 100)
             Image.MarginPx = Clamp(Image.MarginPx, 0, 2000)
