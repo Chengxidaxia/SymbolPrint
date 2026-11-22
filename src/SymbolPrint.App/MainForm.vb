@@ -40,9 +40,19 @@ Namespace App
 
         ''' <summary>按屏幕可用区域挑一个既不局促、也不越界的默认窗口尺寸。</summary>
         Private Shared Function PreferredWindowSize() As Size
+            ' 默认按 1920×1080 开；屏幕放不下时退回可用区的 96%，再兜底最小值。
+            ' 之前是 1840×1120，在 1080p 上偏高，容易顶到任务栏。
             Dim wa = Screen.PrimaryScreen.WorkingArea
-            Dim w = Math.Min(1840, CInt(wa.Width * 0.94))
-            Dim h = Math.Min(1120, CInt(wa.Height * 0.96))
+            Dim w, h As Integer
+            If wa.Width >= 1920 AndAlso wa.Height >= 1080 Then
+                ' 屏幕装得下就精确按 1920×1080 开
+                w = 1920
+                h = 1080
+            Else
+                ' 装不下（1080p 屏去掉任务栏约 1040 高）就占满可用区的 96%
+                w = CInt(wa.Width * 0.96)
+                h = CInt(wa.Height * 0.96)
+            End If
             w = Math.Max(w, 1200) : w = Math.Min(w, wa.Width)
             h = Math.Max(h, 860) : h = Math.Min(h, wa.Height)
             Return New Size(w, h)
