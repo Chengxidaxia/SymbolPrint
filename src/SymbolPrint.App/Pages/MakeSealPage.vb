@@ -147,7 +147,7 @@ Namespace App.Pages
             _sealFileBox = Theme.TextBox2()
             _sealFileBox.Dock = DockStyle.Top
             _sealFileBox.ReadOnly = True
-            _sealFileBox.BackColor = Color.FromArgb(250, 251, 253)
+            _sealFileBox.BackColor = Theme.InputBg
             _sealFileBox.Font = Theme.FontMono
             _sealFileBox.Margin = New Padding(0, 0, 10, 0)
             _sealFilePick = Theme.GhostButton("选择文件…")
@@ -184,7 +184,7 @@ Namespace App.Pages
             _genBox = Theme.TextBox2(True, 60)
             _genBox.Dock = DockStyle.Fill
             _genBox.ReadOnly = True
-            _genBox.BackColor = Color.FromArgb(250, 251, 253)
+            _genBox.BackColor = Theme.InputBg
             _genBox.Font = Theme.FontMono
             _genBox.Margin = New Padding(0)
             _genPanel.Controls.Add(genTop, 0, 0)

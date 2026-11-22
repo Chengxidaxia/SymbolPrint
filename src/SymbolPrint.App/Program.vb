@@ -18,6 +18,31 @@ Namespace App
                 uiFontPt = SymbolPrint.Core.Model.AppSettings.Load().Ui.FontSize
             Catch
             End Try
+            ' 「界面 → 主题」：同样必须在建窗体之前定好；System 跟随 Windows
+            Try
+                Dim mode = SymbolPrint.Core.Model.AppTheme.System
+                Try
+                    mode = SymbolPrint.Core.Model.AppSettings.Load().General.Theme
+                Catch
+                End Try
+                Dim dark = If(mode = SymbolPrint.Core.Model.AppTheme.Dark, True,
+                              If(mode = SymbolPrint.Core.Model.AppTheme.Light, False, Theme.SystemPrefersDark()))
+                Theme.ApplyTheme(dark)
+                Try
+                    IO.File.WriteAllText("K://SymbolPrint//.build//theme-dbg.txt",
+                                         $"mode={mode} dark={dark} bg={Theme.Bg} card={Theme.Card}" & vbCrLf &
+                                         "sysDark=" & Theme.SystemPrefersDark().ToString() & vbCrLf &
+                                         "path=" & SymbolPrint.Core.Model.AppSettings.DefaultPath() & vbCrLf &
+                                         "fileExists=" & IO.File.Exists(SymbolPrint.Core.Model.AppSettings.DefaultPath()).ToString())
+                Catch
+                End Try
+            Catch ex As Exception
+                Try
+                    IO.File.WriteAllText("K://SymbolPrint//.build//theme-dbg.txt", "EX " & ex.ToString())
+                Catch
+                End Try
+            End Try
+
             Try
                 Theme.ApplyFontSize(uiFontPt)
                 Application.SetDefaultFont(New Drawing.Font("Microsoft YaHei UI", CSng(uiFontPt)))

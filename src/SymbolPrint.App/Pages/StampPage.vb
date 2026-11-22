@@ -246,7 +246,7 @@ Namespace App.Pages
 
             _sealPath = Theme.TextBox2()
             _sealPath.ReadOnly = True
-            _sealPath.BackColor = Color.FromArgb(250, 251, 253)
+            _sealPath.BackColor = Theme.InputBg
             _sealPath.Font = Theme.FontMono
             _sealPath.Dock = DockStyle.Fill
             _sealPath.Margin = New Padding(0, 3, 8, 3)
@@ -458,7 +458,7 @@ Namespace App.Pages
                 .ReadOnly = True, .ScrollBars = RichTextBoxScrollBars.Vertical, .DetectUrls = False,
                 .WordWrap = True,
                 .Font = Theme.FontMono, .BorderStyle = BorderStyle.FixedSingle,
-                .BackColor = Color.FromArgb(250, 251, 253), .ForeColor = Theme.TextSub,
+                .BackColor = Theme.InputBg, .ForeColor = Theme.TextSub,
                 .Dock = DockStyle.Fill
             }
             Dim logWrap As New Panel() With {.Dock = DockStyle.Fill, .Padding = New Padding(0, 4, 0, 2), .BackColor = Theme.Bg}

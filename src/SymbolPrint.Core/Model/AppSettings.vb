@@ -105,6 +105,10 @@ Namespace Model
     ' ==================== 各分组参数 ====================
 
     Public Class GeneralOptions
+        <Setting("主题", "通用", choices:={"System", "Light", "Dark"},
+                 help:="重启后生效。System 跟随 Windows 的应用主题设置。")>
+        Public Property Theme As AppTheme = AppTheme.System
+
         <Setting("自动备份原文件", "通用", advanced:=True, help:="盖章前把原文件复制一份 .bak，失败时可回滚。")>
         Public Property AutoBackupOriginal As Boolean = True
 

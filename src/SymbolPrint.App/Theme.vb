@@ -29,27 +29,109 @@ Namespace App
             Return SystemIcons.Shield
         End Function
 
-        ' ---- 配色（浅色专业风）----
-        Friend ReadOnly Bg As Color = Color.FromArgb(244, 246, 249)
-        Friend ReadOnly Card As Color = Color.White
-        Friend ReadOnly Border As Color = Color.FromArgb(223, 227, 234)
-        Friend ReadOnly BorderStrong As Color = Color.FromArgb(198, 204, 214)
-        Friend ReadOnly TextMain As Color = Color.FromArgb(28, 32, 38)
-        Friend ReadOnly TextSub As Color = Color.FromArgb(108, 117, 128)
-        Friend ReadOnly TextFaint As Color = Color.FromArgb(152, 160, 172)
+        ' ---- 配色 ----
+        ' 这些不是 ReadOnly：「界面 → 主题」允许在启动时选浅色/深色/跟随系统。
+        ' 和字号一样，必须在创建任何窗体之前应用；运行中切换需要重启（自绘控件颜色已固化）。
+        Friend Bg As Color = Color.FromArgb(244, 246, 249)
+        Friend Card As Color = Color.White
+        Friend Border As Color = Color.FromArgb(223, 227, 234)
+        Friend BorderStrong As Color = Color.FromArgb(198, 204, 214)
+        Friend TextMain As Color = Color.FromArgb(28, 32, 38)
+        Friend TextSub As Color = Color.FromArgb(108, 117, 128)
+        Friend TextFaint As Color = Color.FromArgb(152, 160, 172)
 
-        Friend ReadOnly Accent As Color = Color.FromArgb(37, 99, 215)
-        Friend ReadOnly AccentHover As Color = Color.FromArgb(28, 82, 186)
-        Friend ReadOnly AccentLight As Color = Color.FromArgb(234, 241, 253)
+        Friend Accent As Color = Color.FromArgb(37, 99, 215)
+        Friend AccentHover As Color = Color.FromArgb(28, 82, 186)
+        Friend AccentLight As Color = Color.FromArgb(234, 241, 253)
 
         ' 状态色：涨红跌绿不适用，这里是"通过/警告/失败"
-        Friend ReadOnly Ok As Color = Color.FromArgb(23, 138, 88)
-        Friend ReadOnly OkLight As Color = Color.FromArgb(232, 246, 238)
-        Friend ReadOnly Warn As Color = Color.FromArgb(176, 106, 4)
-        Friend ReadOnly WarnLight As Color = Color.FromArgb(255, 246, 228)
-        Friend ReadOnly Danger As Color = Color.FromArgb(190, 48, 48)
-        Friend ReadOnly DangerLight As Color = Color.FromArgb(253, 236, 236)
-        Friend ReadOnly InfoLight As Color = Color.FromArgb(238, 243, 250)
+        Friend Ok As Color = Color.FromArgb(23, 138, 88)
+        Friend OkLight As Color = Color.FromArgb(232, 246, 238)
+        Friend Warn As Color = Color.FromArgb(176, 106, 4)
+        Friend WarnLight As Color = Color.FromArgb(255, 246, 228)
+        Friend Danger As Color = Color.FromArgb(190, 48, 48)
+        Friend DangerLight As Color = Color.FromArgb(253, 236, 236)
+        Friend InfoLight As Color = Color.FromArgb(238, 243, 250)
+        ''' <summary>只读输入框/状态块的底色：比卡片略深一点，和可编辑输入区分开。</summary>
+        Friend InputBg As Color = Color.FromArgb(250, 251, 253)
+        ''' <summary>输入框聚焦时的底色。</summary>
+        Friend InputBgFocus As Color = Color.White
+        ''' <summary>表头底色。</summary>
+        Friend HeaderBg As Color = Color.FromArgb(247, 249, 252)
+
+        ''' <summary>当前是否深色（供个别需要判断明暗的地方用）。</summary>
+        Friend IsDark As Boolean = False
+
+        ''' <summary>
+        ''' 切换到深色/浅色配色。必须在创建窗体之前调用一次。
+        ''' 深色不是把浅色反相：底色用中性灰蓝（避免纯黑割裂），
+        ''' 文字不用纯白（长文阅读刺眼），强调色提亮以保证在深底上的对比度。
+        ''' </summary>
+        Friend Sub ApplyTheme(dark As Boolean)
+            IsDark = dark
+            If dark Then
+                Bg = Color.FromArgb(24, 26, 30)
+                Card = Color.FromArgb(32, 35, 41)
+                Border = Color.FromArgb(58, 62, 70)
+                BorderStrong = Color.FromArgb(80, 86, 96)
+                TextMain = Color.FromArgb(232, 235, 240)
+                TextSub = Color.FromArgb(172, 179, 190)
+                TextFaint = Color.FromArgb(126, 134, 146)
+
+                Accent = Color.FromArgb(84, 150, 255)
+                AccentHover = Color.FromArgb(112, 170, 255)
+                AccentLight = Color.FromArgb(40, 56, 82)
+
+                Ok = Color.FromArgb(72, 196, 140)
+                OkLight = Color.FromArgb(30, 60, 46)
+                Warn = Color.FromArgb(232, 168, 72)
+                WarnLight = Color.FromArgb(64, 52, 30)
+                Danger = Color.FromArgb(238, 106, 106)
+                DangerLight = Color.FromArgb(72, 38, 38)
+                InfoLight = Color.FromArgb(38, 48, 64)
+                InputBg = Color.FromArgb(40, 44, 52)
+                InputBgFocus = Color.FromArgb(52, 57, 66)
+                HeaderBg = Color.FromArgb(38, 41, 48)
+            Else
+                Bg = Color.FromArgb(244, 246, 249)
+                Card = Color.White
+                Border = Color.FromArgb(223, 227, 234)
+                BorderStrong = Color.FromArgb(198, 204, 214)
+                TextMain = Color.FromArgb(28, 32, 38)
+                TextSub = Color.FromArgb(108, 117, 128)
+                TextFaint = Color.FromArgb(152, 160, 172)
+
+                Accent = Color.FromArgb(37, 99, 215)
+                AccentHover = Color.FromArgb(28, 82, 186)
+                AccentLight = Color.FromArgb(234, 241, 253)
+
+                Ok = Color.FromArgb(23, 138, 88)
+                OkLight = Color.FromArgb(232, 246, 238)
+                Warn = Color.FromArgb(176, 106, 4)
+                WarnLight = Color.FromArgb(255, 246, 228)
+                Danger = Color.FromArgb(190, 48, 48)
+                DangerLight = Color.FromArgb(253, 236, 236)
+                InfoLight = Color.FromArgb(238, 243, 250)
+                InputBg = Color.FromArgb(250, 251, 253)
+                InputBgFocus = Color.White
+                HeaderBg = Color.FromArgb(247, 249, 252)
+            End If
+        End Sub
+
+        ''' <summary>读注册表的「应用使用浅色主题」判断系统当前是不是深色。</summary>
+        Friend Function SystemPrefersDark() As Boolean
+            Try
+                Using k = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                        "Software\Microsoft\Windows\CurrentVersion\Themes\Personalize")
+                    If k IsNot Nothing Then
+                        Dim v = k.GetValue("AppsUseLightTheme")
+                        If v IsNot Nothing Then Return Convert.ToInt32(v) = 0
+                    End If
+                End Using
+            Catch
+            End Try
+            Return False
+        End Function
 
         ' 这些不是 ReadOnly：「界面 → 字号」允许在启动时改一次，
         ' 必须在创建任何窗体之前调 ApplyFontSize，否则已有控件仍持有旧字体对象。
@@ -202,14 +284,15 @@ Namespace App
             Dim t As New TextBox()
             t.Font = FontBase
             t.BorderStyle = BorderStyle.FixedSingle
-            ' 卡片是纯白，输入框用极浅灰才看得出"这是可以填的地方"；聚焦时转白，边界更清楚
-            t.BackColor = Color.FromArgb(249, 250, 252)
+            ' 底色跟主题走：浅色下是极浅灰、深色下是比卡片略亮的深灰，
+            ' 聚焦时再提亮一档——深色主题里如果还用白色，会是一块刺眼的白砖
+            t.BackColor = InputBg
             t.ForeColor = TextMain
             AddHandler t.Enter, Sub(s, e)
-                                    If Not t.ReadOnly Then t.BackColor = Color.White
+                                    If Not t.ReadOnly Then t.BackColor = InputBgFocus
                                 End Sub
             AddHandler t.Leave, Sub(s, e)
-                                    If Not t.ReadOnly Then t.BackColor = Color.FromArgb(249, 250, 252)
+                                    If Not t.ReadOnly Then t.BackColor = InputBg
                                 End Sub
             If multiline Then
                 t.Multiline = True
@@ -236,11 +319,11 @@ Namespace App
             g.BorderStyle = BorderStyle.None
             g.EnableHeadersVisualStyles = False
             g.ColumnHeadersBorderStyle = DataGridViewHeaderBorderStyle.None
-            g.ColumnHeadersDefaultCellStyle.BackColor = Color.FromArgb(247, 249, 252)
+            g.ColumnHeadersDefaultCellStyle.BackColor = HeaderBg
             g.ColumnHeadersDefaultCellStyle.ForeColor = TextSub
             g.ColumnHeadersDefaultCellStyle.Font = FontBold
             g.ColumnHeadersDefaultCellStyle.Padding = New Padding(8, 0, 0, 0)
-            g.ColumnHeadersDefaultCellStyle.SelectionBackColor = Color.FromArgb(247, 249, 252)
+            g.ColumnHeadersDefaultCellStyle.SelectionBackColor = HeaderBg
             g.ColumnHeadersDefaultCellStyle.SelectionForeColor = TextSub
             g.ColumnHeadersHeight = 34
             ' 表头默认会按字符折行：列一窄就变成「大\n小」「写\n入\n位\n置」这种竖排碎字，
@@ -249,6 +332,7 @@ Namespace App
             g.ColumnHeadersHeightSizeMode = DataGridViewColumnHeadersHeightSizeMode.DisableResizing
             g.DefaultCellStyle.Font = FontBase
             g.DefaultCellStyle.ForeColor = TextMain
+            g.DefaultCellStyle.BackColor = Card
             g.DefaultCellStyle.SelectionBackColor = AccentLight
             g.DefaultCellStyle.SelectionForeColor = TextMain
             g.DefaultCellStyle.Padding = New Padding(8, 0, 0, 0)
