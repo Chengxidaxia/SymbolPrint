@@ -194,9 +194,11 @@ Namespace App.Pages
             _srcHost.Controls.Add(_filePanel)
             _srcHost.Controls.Add(_genPanel)
 
+            ' 「章私钥默认口令保护」决定新建章时是否默认勾上
             _passOn = New CheckBox() With {
                 .Text = "用口令保护私钥（推荐）", .AutoSize = True, .ForeColor = Theme.TextMain,
-                .Margin = New Padding(0, 0, 0, 6)
+                .Margin = New Padding(0, 0, 0, 6),
+                .Checked = _owner.Settings.Crypto.ProtectStampKeyByDefault
             }
 
             Dim passRow As New TableLayoutPanel() With {

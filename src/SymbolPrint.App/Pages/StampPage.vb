@@ -731,6 +731,36 @@ Namespace App.Pages
             End Try
         End Function
 
+        ' ---- 章解锁保持时间（「高级设置 → 加密 → 解锁保持时间」）----
+        ' 0 表示整个会话保持；>0 时到点自动清掉内存里的私钥，必须重新载入
+        Private _sealExpireAt As DateTime? = Nothing
+        Private WithEvents _sealLockTimer As New System.Windows.Forms.Timer() With {.Interval = 15000}
+
+        Private Sub InitSealLockTimer()
+            AddHandler _sealLockTimer.Tick, Sub(s, e)
+                                                If Not _sealExpireAt.HasValue Then Return
+                                                If DateTime.Now < _sealExpireAt.Value Then Return
+                                                _sealExpireAt = Nothing
+                                                _seal = Nothing
+                                                _sealInfo.ForeColor = Theme.Warn
+                                                _sealInfo.Text = "章的解锁时间已到，私钥已从内存清除。" & Environment.NewLine &
+                                                                 "如需继续盖章，请输入口令后重新点「载入」。"
+                                                _owner.SetSeal(_sealPath.Text, Nothing)
+                                                AppendLog("章已自动上锁（解锁保持时间到期）。")
+                                            End Sub
+            _sealLockTimer.Start()
+        End Sub
+
+        ''' <summary>刷新解锁到期时间；0 分钟表示本会话不过期。</summary>
+        Private Sub TouchSealUnlock()
+            Dim minutes = _owner.Settings.Crypto.UnlockKeepMinutes
+            If minutes <= 0 Then
+                _sealExpireAt = Nothing
+            Else
+                _sealExpireAt = DateTime.Now.AddMinutes(minutes)
+            End If
+        End Sub
+
         ''' <summary>当前待盖章文件（供「启动时打开上次文件」在关闭时保存）。</summary>
         Friend ReadOnly Property Files As IReadOnlyList(Of String)
             Get
@@ -980,6 +1010,8 @@ Namespace App.Pages
                                  If(seal.HasSvg, Environment.NewLine & "含内置图案，可直接用于贴图。", "")
 
                 _owner.SetSeal(p, seal)
+                InitSealLockTimer()
+                TouchSealUnlock()
                 AppendLog($"章已载入：{seal.Label}（{seal.StampIdShort}）")
 
                 If seal.HasSvg AndAlso String.IsNullOrWhiteSpace(_markBox.Text) Then
