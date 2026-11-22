@@ -106,6 +106,11 @@ dotnet publish src/SymbolPrint.App/SymbolPrint.App.vbproj -c Release -r win-x64 
   -o dist/sc
 ```
 
+## 界面语言
+
+界面固定为简体中文，不提供多语言切换。理由：全量 i18n 需要把 400 多条文案抽成资源键、
+改造所有调用点、并在切换后重建页面，属于独立重构；半翻译的界面比全中文更难用，所以不做半成品。
+
 ## 主题与窗口
 
 - 「高级设置 → 通用 → 主题」：System（跟随 Windows）/ Light / Dark，**重启后生效**
@@ -148,7 +153,7 @@ dotnet publish src/SymbolPrint.App/SymbolPrint.App.vbproj -c Release -r win-x64 
 外部 7-Zip 路径（7z 支持是纯托管实现，不调用外部程序）、允许重打包归档、临时目录、保留临时文件、
 最近文件数量、并行度（逐个盖章是有意为之，并发会让进度与错误定位变复杂）、
 PDF 不透明度（与界面统一不透明度重复）、PDF 增量更新（PDFsharp 只能整份重写）、
-GCM Nonce 长度（.NET 的 AES-GCM 只接受 12 字节）、语言与主题（需要完整的 i18n 与深色主题体系）、
+GCM Nonce 长度（.NET 的 AES-GCM 只接受 12 字节）、
 文本编码方案与插入位置（当前只实现了零宽二进制 + 末尾插入）、打开时自动验章。
 
 ## 命令行
