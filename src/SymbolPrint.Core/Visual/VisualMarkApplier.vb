@@ -178,6 +178,11 @@ Namespace Visual
             Dim res As New VisualMarkResult()
             Dim ext = Path.GetExtension(filePath).ToLowerInvariant()
 
+            ' JPEG / GIF / BMP 没有 alpha 通道：把透明区留成透明，GDI+ 保存时会填成黑色，
+            ' 所以这三种格式必须先在白底上拍平，透明区变白（符合格式本身的预期）
+            Dim flatten = ext = ".jpg" OrElse ext = ".jpeg" OrElse ext = ".jpe" OrElse ext = ".jfif" OrElse
+                          ext = ".gif" OrElse ext = ".bmp" OrElse ext = ".dib"
+
             SyncLock _gdiLock
                 ' 先读进内存再释放文件句柄，避免 GDI+ 锁文件
                 Dim raw = File.ReadAllBytes(filePath)
@@ -210,6 +215,9 @@ Namespace Visual
 
                             Using dst As New Bitmap(w, h, PixelFormat.Format32bppArgb)
                                 Using g = Graphics.FromImage(dst)
+                                    ' 原图可能带透明区域：PNG/TIFF 清成透明以保留 alpha；
+                                    ' 无 alpha 的格式清成白色，避免保存后透明区变黑块
+                                    g.Clear(If(flatten, Color.White, Color.Transparent))
                                     g.CompositingQuality = CompositingQuality.HighQuality
                                     g.InterpolationMode = InterpolationMode.HighQualityBicubic
                                     g.PixelOffsetMode = PixelOffsetMode.HighQuality
@@ -308,6 +316,10 @@ Namespace Visual
                         cm.Matrix33 = CSng(o) ' 整体 alpha 缩放
                         Using ia As New ImageAttributes()
                             ia.SetColorMatrix(cm, ColorMatrixFlag.Default, ColorAdjustType.Bitmap)
+                            ' 关键：缩放带透明通道的图时，双三次插值会把"完全透明但 RGB 为黑"的边缘像素
+                            ' 混进半透明区域，看上去就是一圈黑边——像透明通道丢了。
+                            ' TileFlipXY 让采样在边界处镜像自身，不再取到画面外的透明像素。
+                            ia.SetWrapMode(Drawing2D.WrapMode.TileFlipXY)
                             g.DrawImage(raw, New Rectangle(0, 0, widthPx, h), 0, 0, raw.Width, raw.Height,
                                         GraphicsUnit.Pixel, ia)
                         End Using
@@ -512,6 +524,7 @@ Namespace Visual
                             cm.Matrix33 = CSng(o)
                             Using ia As New ImageAttributes()
                                 ia.SetColorMatrix(cm, ColorMatrixFlag.Default, ColorAdjustType.Bitmap)
+                                ia.SetWrapMode(Drawing2D.WrapMode.TileFlipXY)
                                 g.DrawImage(src, New Rectangle(0, 0, src.Width, src.Height),
                                             0, 0, src.Width, src.Height, GraphicsUnit.Pixel, ia)
                             End Using
