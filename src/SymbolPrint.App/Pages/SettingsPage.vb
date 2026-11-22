@@ -58,6 +58,8 @@ Namespace App.Pages
         Private Shared ReadOnly InEffectKeys As New HashSet(Of String)(StringComparer.Ordinal) From {
             "General.AutoBackupOriginal", "General.BackupSuffix", "General.ValidateBeforeOpen",
             "Crypto.Pbkdf2Iterations", "Crypto.Curve", "Crypto.ProtectStampKeyByDefault", "Crypto.UnlockKeepMinutes",
+            "Crypto.AesKeyBits", "Crypto.GcmTagBytes",
+            "Crypto.Pbkdf2SaltBytes", "Crypto.DerivedKeyBytes", "Crypto.HkdfInfo",
             "Compression.BrotliQuality", "Compression.Algorithm",
             "Compression.SkipIfLarger", "Compression.SealBytesMax", "Compression.MinSizeToCompress",
             "Image.OpacityPercent", "Image.RotationDegrees",
@@ -68,7 +70,7 @@ Namespace App.Pages
             "Pdf.OffsetXMm", "Pdf.OffsetYMm", "Pdf.BehindContent",
             "Verify.StrictMode", "Verify.WarnIfNoSeal", "Verify.CheckOriginalHash",
             "Verify.CheckStampId", "Verify.CheckOwnHash",
-            "Verify.ShowRawHex", "Verify.ReportFormat", "Verify.CopyReportToClipboard",
+            "Verify.ShowRawHex", "Verify.ReportFormat", "Verify.CopyReportToClipboard", "Verify.CheckTimestampOrder",
             "Progress.DelayMs", "Progress.ThrottleMs", "Progress.Enabled",
             "Progress.ShowIndeterminate", "Progress.ShowBytesDetail", "Progress.CancelOnEsc",
             "Ui.ShowStampDescription", "Ui.ShowAdvancedByDefault", "Ui.ConfirmBeforeOverwrite",

@@ -7,10 +7,10 @@
   "targets": {
     ".NETCoreApp,Version=v9.0": {},
     ".NETCoreApp,Version=v9.0/win-x64": {
-      "SymbolPrint/1.0.1": {
+      "SymbolPrint/1.0.2": {
         "dependencies": {
           "Microsoft.Web.WebView2": "1.0.3351.48",
-          "SymbolPrint.Core": "1.0.1",
+          "SymbolPrint.Core": "1.0.2",
           "Microsoft.Web.WebView2.Core": "1.0.3351.48",
           "Microsoft.Web.WebView2.WinForms": "1.0.3351.48",
           "Microsoft.Web.WebView2.Wpf": "1.0.3351.48"
@@ -73,7 +73,7 @@
         }
       },
       "System.Text.Encoding.CodePages/8.0.0": {},
-      "SymbolPrint.Core/1.0.1": {
+      "SymbolPrint.Core/1.0.2": {
         "dependencies": {
           "BouncyCastle.Cryptography": "2.7.0",
           "PDFsharp": "1.50.5147",
@@ -83,8 +83,8 @@
         },
         "runtime": {
           "SymbolPrint.Core.dll": {
-            "assemblyVersion": "1.0.1.0",
-            "fileVersion": "1.0.1.0"
+            "assemblyVersion": "1.0.2.0",
+            "fileVersion": "1.0.2.0"
           }
         }
       },
@@ -115,7 +115,7 @@
     }
   },
   "libraries": {
-    "SymbolPrint/1.0.1": {
+    "SymbolPrint/1.0.2": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
@@ -176,7 +176,7 @@
       "path": "system.text.encoding.codepages/8.0.0",
       "hashPath": "system.text.encoding.codepages.8.0.0.nupkg.sha512"
     },
-    "SymbolPrint.Core/1.0.1": {
+    "SymbolPrint.Core/1.0.2": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

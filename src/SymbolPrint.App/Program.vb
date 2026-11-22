@@ -12,8 +12,15 @@ Namespace App
             Application.EnableVisualStyles()
             Application.SetCompatibleTextRenderingDefault(False)
 
+            ' 「界面 → 字号」：必须在任何窗体创建之前应用，否则已建控件仍持旧字体
+            Dim uiFontPt As Integer = 9
             Try
-                Application.SetDefaultFont(New Drawing.Font("Microsoft YaHei UI", 9.0F))
+                uiFontPt = SymbolPrint.Core.Model.AppSettings.Load().Ui.FontSize
+            Catch
+            End Try
+            Try
+                Theme.ApplyFontSize(uiFontPt)
+                Application.SetDefaultFont(New Drawing.Font("Microsoft YaHei UI", CSng(uiFontPt)))
             Catch
                 ' 字体缺失时保持系统默认，不阻断启动
             End Try

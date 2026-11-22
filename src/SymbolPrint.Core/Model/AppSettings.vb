@@ -105,15 +105,6 @@ Namespace Model
     ' ==================== 各分组参数 ====================
 
     Public Class GeneralOptions
-        <Setting("界面语言", "通用", choices:={"zh-CN", "en-US"}, help:="重启后生效。")>
-        Public Property Language As String = "zh-CN"
-
-        <Setting("主题", "通用", choices:={"System", "Light", "Dark"})>
-        Public Property Theme As AppTheme = AppTheme.System
-
-        <Setting("并行度", "通用", unit:="线程", minValue:=1, maxValue:=64, help:="批量盖章时的并发文件数。")>
-        Public Property MaxParallelism As Integer = 1
-
         <Setting("自动备份原文件", "通用", advanced:=True, help:="盖章前把原文件复制一份 .bak，失败时可回滚。")>
         Public Property AutoBackupOriginal As Boolean = True
 
@@ -140,10 +131,6 @@ Namespace Model
 
         <Setting("AES 密钥长度", "加密", unit:="bit", choices:={"128", "192", "256"})>
         Public Property AesKeyBits As Integer = 256
-
-        <Setting("GCM Nonce 长度", "加密", unit:="字节", minValue:=12, maxValue:=16, advanced:=True,
-                 help:="GCM 标准值 12；改大只在极其特殊的互操作场景有意义。")>
-        Public Property GcmNonceBytes As Integer = 12
 
         <Setting("GCM Tag 长度", "加密", unit:="字节", minValue:=12, maxValue:=16, advanced:=True)>
         Public Property GcmTagBytes As Integer = 16
@@ -191,13 +178,6 @@ Namespace Model
                  help:="ZIP 规范硬上限 65535，超了只能重打包。")>
         Public Property ZipCommentMaxBytes As Integer = 65535
 
-
-        <Setting("文本编码方案", "载体", choices:={"ZeroWidthBinary", "VariationSelectors", "AsciiWhitespace"},
-                 help:="AsciiWhitespace 会破坏 Markdown 语义且会被编辑器 trim，慎用。")>
-        Public Property TextEncodingProfile As TextEncodingProfile = TextEncodingProfile.ZeroWidthBinary
-
-        <Setting("文本插入位置", "载体", choices:={"FileEnd", "PerLineTail", "FileStart"})>
-        Public Property TextInsertPosition As TextInsertPosition = TextInsertPosition.FileEnd
 
         <Setting("零宽字符集", "载体", advanced:=True,
                  help:="用于二进制 0/1 的两个码点，逗号分隔十六进制。")>
@@ -411,13 +391,11 @@ Namespace Model
 
         ''' <summary>把所有越界/非法的值拉回合法范围（配置文件被手改也不会炸）。</summary>
         Public Sub Normalize()
-            General.MaxParallelism = Clamp(General.MaxParallelism, 1, 64)
             If String.IsNullOrEmpty(General.BackupSuffix) Then General.BackupSuffix = ".bak"
 
             Crypto.Pbkdf2Iterations = Clamp(Crypto.Pbkdf2Iterations, 1000, 2000000)
             Crypto.Pbkdf2SaltBytes = Clamp(Crypto.Pbkdf2SaltBytes, 8, 64)
             Crypto.DerivedKeyBytes = Clamp(Crypto.DerivedKeyBytes, 16, 64)
-            Crypto.GcmNonceBytes = Clamp(Crypto.GcmNonceBytes, 12, 16)
             Crypto.GcmTagBytes = Clamp(Crypto.GcmTagBytes, 12, 16)
             If Crypto.AesKeyBits <> 128 AndAlso Crypto.AesKeyBits <> 192 AndAlso Crypto.AesKeyBits <> 256 Then Crypto.AesKeyBits = 256
             Dim curveName As String = If(Crypto.Curve, "").ToLowerInvariant()

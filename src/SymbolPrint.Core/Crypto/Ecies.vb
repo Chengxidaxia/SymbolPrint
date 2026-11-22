@@ -29,6 +29,8 @@ Namespace Crypto
     Public Module Ecies
 
         Public Const EnvelopeVersion As Byte = 1
+        ' v2 在信封头写 nonceLen/tagLen，nonce 与 tag 长度才可调；v1 仍是固定 12/16
+        Public Const EnvelopeVersion2 As Byte = 2
         Private Const KdfInfo As String = "SymbolPrint-ECIES-v1"
 
         Public Function CurveOf(id As EcCurveId) As ECCurve
@@ -110,9 +112,12 @@ Namespace Crypto
             Return ECDiffieHellman.Create(prm)
         End Function
 
-        Private Function DeriveAesKey(secret As Byte(), ephPoint As Byte(), peerPoint As Byte()) As Byte()
+        Private Function DeriveAesKey(secret As Byte(), ephPoint As Byte(), peerPoint As Byte(),
+                                      Optional info As String = Nothing,
+                                      Optional keyLen As Integer = AesGcmUtil.KeyLen) As Byte()
             Dim salt = Util.Bin.Concat(ephPoint, peerPoint)
-            Return Sha3Kdf.Hkdf(secret, salt, Util.Bin.Utf8Bytes(KdfInfo), AesGcmUtil.KeyLen)
+            Dim ctx = If(String.IsNullOrEmpty(info), KdfInfo, info)
+            Return Sha3Kdf.Hkdf(secret, salt, Util.Bin.Utf8Bytes(ctx), keyLen)
         End Function
 
         ''' <summary>
@@ -121,7 +126,11 @@ Namespace Crypto
         ''' </summary>
         Public Function Encrypt(recipientSpki As Byte(), plain As Byte(), curve As EcCurveId,
                                 Optional ephPrivatePkcs8 As Byte() = Nothing,
-                                Optional nonceOverride As Byte() = Nothing) As Byte()
+                                Optional nonceOverride As Byte() = Nothing,
+                                Optional info As String = Nothing,
+                                Optional keyLen As Integer = AesGcmUtil.KeyLen,
+                                Optional nonceLen As Integer = AesGcmUtil.NonceLen,
+                                Optional tagLen As Integer = AesGcmUtil.TagLen) As Byte()
             If plain Is Nothing Then plain = Array.Empty(Of Byte)()
 
             Dim recipPoint = PointOf(curve, recipientSpki)
@@ -147,13 +156,19 @@ Namespace Crypto
                     Buffer.BlockCopy(ephPrm.Q.Y, 0, ephPoint, 1 + ephPrm.Q.X.Length, ephPrm.Q.Y.Length)
 
                     Dim secret = eph.DeriveRawSecretAgreement(recip.PublicKey)
-                    Dim aesKey = DeriveAesKey(secret, ephPoint, recipPoint)
-                    Dim nonce = If(nonceOverride, AesGcmUtil.NewNonce())
-                    Dim r = AesGcmUtil.Encrypt(aesKey, nonce, plain)
+                    Dim aesKey = DeriveAesKey(secret, ephPoint, recipPoint, info, keyLen)
+                    Dim nonce = If(nonceOverride, Util.Bin.RandomBytes(Math.Max(8, nonceLen)))
+                    Dim r = AesGcmUtil.Encrypt(aesKey, nonce, plain, Nothing, tagLen)
 
+                    ' 只要长度不是默认值就走 v2 信封（头部带长度），否则保持 v1 字节形态
+                    Dim useV2 = (nonceLen <> AesGcmUtil.NonceLen) OrElse (tagLen <> AesGcmUtil.TagLen)
                     Dim w As New Util.ByteWriter()
-                    w.WriteU8(EnvelopeVersion)
+                    w.WriteU8(If(useV2, EnvelopeVersion2, EnvelopeVersion))
                     w.WriteU8(CByte(curve))
+                    If useV2 Then
+                        w.WriteU8(CByte(nonceLen))
+                        w.WriteU8(CByte(tagLen))
+                    End If
                     w.WriteU8(CByte(ephPoint.Length))
                     w.WriteBytes(ephPoint)
                     w.WriteBytes(nonce)
@@ -165,15 +180,25 @@ Namespace Crypto
         End Function
 
         ''' <summary>用接收方私钥（PKCS#8）解出 ECIES 信封内容。</summary>
-        Public Function Decrypt(privatePkcs8 As Byte(), envelope As Byte()) As Byte()
+        Public Function Decrypt(privatePkcs8 As Byte(), envelope As Byte(),
+                                Optional info As String = Nothing,
+                                Optional keyLen As Integer = AesGcmUtil.KeyLen) As Byte()
             Dim rdr As New Util.ByteReader(envelope)
             Dim ver = rdr.ReadU8()
-            If ver <> EnvelopeVersion Then Throw New InvalidOperationException($"不支持的 ECIES 信封版本：{ver}")
+            If ver <> EnvelopeVersion AndAlso ver <> EnvelopeVersion2 Then
+                Throw New InvalidOperationException($"不支持的 ECIES 信封版本：{ver}")
+            End If
             Dim curveId = CType(rdr.ReadU8(), EcCurveId)
+            Dim nonceLen = AesGcmUtil.NonceLen
+            Dim tagLen = AesGcmUtil.TagLen
+            If ver = EnvelopeVersion2 Then
+                nonceLen = CInt(rdr.ReadU8())
+                tagLen = CInt(rdr.ReadU8())
+            End If
             Dim plen = CInt(rdr.ReadU8())
             Dim ephPoint = rdr.ReadBytes(plen)
-            Dim nonce = rdr.ReadBytes(AesGcmUtil.NonceLen)
-            Dim tag = rdr.ReadBytes(AesGcmUtil.TagLen)
+            Dim nonce = rdr.ReadBytes(nonceLen)
+            Dim tag = rdr.ReadBytes(tagLen)
             Dim cipher = rdr.ReadBytes(rdr.Remaining)
 
             Using selfEcdh = ECDiffieHellman.Create()
@@ -185,7 +210,7 @@ Namespace Crypto
 
                 Using other = PublicFromPoint(curveId, ephPoint)
                     Dim secret = selfEcdh.DeriveRawSecretAgreement(other.PublicKey)
-                    Dim aesKey = DeriveAesKey(secret, ephPoint, mine)
+                    Dim aesKey = DeriveAesKey(secret, ephPoint, mine, info, keyLen)
                     Return AesGcmUtil.Decrypt(aesKey, nonce, cipher, tag)
                 End Using
             End Using

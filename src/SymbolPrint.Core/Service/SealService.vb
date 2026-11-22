@@ -144,6 +144,13 @@ Namespace Service
         Public Property MinSizeToCompress As Integer = 256
         ''' <summary>章字节上限（超过就拒绝盖章，避免把超大记录写进别人的文件）。</summary>
         Public Property SealBytesMax As Long = 64L * 1024 * 1024
+
+        ' ---- 加密协议参数：只影响新盖的记录；老记录按自己头里的长度解析 ----
+        Public Property AesKeyBits As Integer = 256
+        Public Property GcmTagBytes As Integer = 16
+        Public Property Pbkdf2SaltBytes As Integer = 16
+        Public Property DerivedKeyBytes As Integer = 32
+        Public Property HkdfInfo As String = "SymbolPrint-ECIES-v1"
         ''' <summary>章字节指纹（PBKDF2）迭代次数。</summary>
         Public Property Pbkdf2Iterations As Integer = StampFile.DefaultKdfIterations
         ''' <summary>载体写入选项（压缩包重打包口令等）。</summary>
@@ -471,8 +478,10 @@ Namespace Service
                     $"章字节 {Comp.HumanSize(sealBytes.Length)} 超过上限 {Comp.HumanSize(options.SealBytesMax)}" &
                     "（可在「高级设置 → 压缩 → 章字节上限」调整）。")
             End If
-                Dim pbSalt = Bin.RandomBytes(16)
-                Dim pb = Sha3Kdf.Pbkdf2(sealBytes, pbSalt, options.Pbkdf2Iterations, SealRecord.Pbkdf2Len,
+                Dim saltLen = Math.Max(8, Math.Min(64, options.Pbkdf2SaltBytes))
+                Dim pbLen = Math.Max(16, Math.Min(64, options.DerivedKeyBytes))
+                Dim pbSalt = Bin.RandomBytes(saltLen)
+                Dim pb = Sha3Kdf.Pbkdf2(sealBytes, pbSalt, options.Pbkdf2Iterations, pbLen,
                                         scope.Slice(0.45, 0.65, "派生章字节指纹"))
 
                 ' 4) 加密节2 明文
@@ -486,7 +495,11 @@ Namespace Service
                 Dim s2Plain = s2.ToArray()
 
                 ' 5) ECIES 加密（用章的公钥）
-                Dim s2Cipher = Ecies.Encrypt(seal.Keys.PublicSpki, s2Plain, seal.Keys.CurveId)
+                Dim keyLen = Math.Max(16, Math.Min(32, options.AesKeyBits \ 8))
+                Dim nonceLen = 12   ' .NET 的 AesGcm 只接受 12 字节 nonce，这里不做可变
+                Dim tagLen = Math.Max(12, Math.Min(16, options.GcmTagBytes))
+                Dim s2Cipher = Ecies.Encrypt(seal.Keys.PublicSpki, s2Plain, seal.Keys.CurveId,
+                                             Nothing, Nothing, options.HkdfInfo, keyLen, nonceLen, tagLen)
 
                 ' 6) 加密节1 明文
                 Dim ephPoint = EciesPointOf(s2Cipher)
@@ -507,9 +520,9 @@ Namespace Service
                 Dim s1Plain = s1.ToArray()
 
                 ' 7) 加密节1 + 记录头
-                Dim key1 = AesGcmUtil.NewKey()
-                Dim nonce1 = AesGcmUtil.NewNonce()
-                Dim enc = AesGcmUtil.Encrypt(key1, nonce1, s1Plain)
+                Dim key1 = Bin.RandomBytes(keyLen)
+                Dim nonce1 = Bin.RandomBytes(nonceLen)
+                Dim enc = AesGcmUtil.Encrypt(key1, nonce1, s1Plain, Nothing, tagLen)
 
                 Dim rec As New SealRecord()
                 rec.StampTime = DateTimeOffset.Now
@@ -518,6 +531,13 @@ Namespace Service
                 rec.Nonce1 = nonce1
                 rec.Tag1 = enc.Tag
                 rec.Section1Cipher = enc.Cipher
+                rec.RecordVer = SealRecord.CurrentVersion
+                rec.SaltLen = saltLen
+                rec.Key1Len = keyLen
+                rec.NonceLen = nonceLen
+                rec.TagLen = tagLen
+                rec.Pbkdf2LenUsed = pbLen
+                rec.HkdfInfo = If(options.HkdfInfo, "SymbolPrint-ECIES-v1")
                 rec.SealOwnHash()
                 Dim raw = rec.Serialize()
 
@@ -693,8 +713,8 @@ Namespace Service
                 Dim s1r As New ByteReader(s1Plain)
                 s1r.ReadU8()
                 Dim kdfIter = CInt(s1r.ReadU32())
-                Dim pbSalt = s1r.ReadBytes(16)
-                Dim pb1 = s1r.ReadBytes(SealRecord.Pbkdf2Len)
+                Dim pbSalt = s1r.ReadBytes(Math.Max(1, rec.SaltLen))
+                Dim pb1 = s1r.ReadBytes(Math.Max(1, rec.Pbkdf2LenUsed))
                 Dim s2Len = CInt(s1r.ReadU32())
                 Dim s2Cipher = s1r.ReadBytes(s2Len)
                 Dim ephLen = CInt(s1r.ReadU16())
@@ -730,7 +750,7 @@ Namespace Service
                 ' 7) 解密加密节2
                 Dim s2Plain As Byte()
                 Try
-                    s2Plain = Ecies.Decrypt(stamp.GetPrivateKey(), s2Cipher)
+                    s2Plain = Ecies.Decrypt(stamp.GetPrivateKey(), s2Cipher, rec.HkdfInfo, rec.Key1Len)
                 Catch ex As Exception
                     res.Add("加密节2", SealPartState.Failed, "无法用该章的私钥解开加密节2：" & ex.Message)
                     Return res
@@ -741,14 +761,14 @@ Namespace Service
                 Dim sealLen = CInt(s2r.ReadU32())
                 Dim sealBytes = s2r.ReadBytes(sealLen)
                 Dim origHash = s2r.ReadBytes(64)
-                Dim pb2 = s2r.ReadBytes(SealRecord.Pbkdf2Len)
-                Dim pbSalt2 = s2r.ReadBytes(16)
+                Dim pb2 = s2r.ReadBytes(Math.Max(1, rec.Pbkdf2LenUsed))
+                Dim pbSalt2 = s2r.ReadBytes(Math.Max(1, rec.SaltLen))
                 res.SealBytesLength = sealLen
                 res.OriginalHashHex = Bin.Hex(origHash).ToUpperInvariant()
                 res.Add("加密节2", SealPartState.Ok, $"已用章私钥解密，取出章字节 {sealLen} 字节。")
 
                 ' 8) 章字节指纹
-                Dim pbRecalc = Sha3Kdf.Pbkdf2(sealBytes, pbSalt2, kdfIter, SealRecord.Pbkdf2Len,
+                Dim pbRecalc = Sha3Kdf.Pbkdf2(sealBytes, pbSalt2, kdfIter, Math.Max(1, rec.Pbkdf2LenUsed),
                                               scope.Slice(0.35, 0.55, "重算章字节指纹"))
                 If Bin.Same(pb1, pb2) AndAlso Bin.Same(pb2, pbRecalc) Then
                     res.Add("章字节指纹", SealPartState.Ok, "两处 PBKDF2 记录一致，且与章字节重算结果相同。")
@@ -781,10 +801,62 @@ Namespace Service
                             "…，现在 " & Bin.Hex(origNow).Substring(0, 16).ToUpperInvariant() & "…")
                 End If
 
+                ' 10) 时间戳单调：同一文件多条记录时，后写的记录时间不该比前一条更早
+                If options.CheckTimestampOrder Then
+                    Dim times = ReadTailRecordTimes(filePath, 8)
+                    If times.Count < 2 Then
+                        res.Add("时间戳顺序", SealPartState.Skipped, "文件里只有一条记录，无需比较顺序。")
+                    Else
+                        Dim back As New List(Of String)()
+                        For i = 1 To times.Count - 1
+                            ' times(0) 是最新写入的那条
+                            If times(i) > times(i - 1) Then
+                                back.Add($"{times(i):yyyy-MM-dd HH:mm:ss} → {times(i - 1):yyyy-MM-dd HH:mm:ss}")
+                            End If
+                        Next
+                        If back.Count = 0 Then
+                            res.Add("时间戳顺序", SealPartState.Ok, $"{times.Count} 条记录的盖章时间依次递增，没有倒挂。")
+                        Else
+                            res.Add("时间戳顺序", SealPartState.Warning,
+                                    "存在时间倒挂（后写入的记录反而更早），可能被工具回填过时间：" & String.Join("；", back))
+                        End If
+                    End If
+                End If
+
                 ProgressExt.Push(sink, "验章", 1.0)
             End Using
 
             Return res
+        End Function
+
+
+        ''' <summary>
+        ''' 只读地枚举尾部连续信封里的盖章时间（最多 maxCount 条，从最新往前）。
+        ''' 只对「尾部追加型」载体有效，其它载体返回空表——不为了这个功能去重写别人的文件。
+        ''' </summary>
+        Private Shared Function ReadTailRecordTimes(filePath As String, maxCount As Integer) As List(Of DateTimeOffset)
+            Dim list As New List(Of DateTimeOffset)()
+            Try
+                Dim pos As Long = New IO.FileInfo(filePath).Length
+                For i = 1 To Math.Max(1, maxCount)
+                    If pos < SealEnvelope.FooterSize Then Exit For
+                    Dim footerBytes = CarrierExt.ReadRange(filePath, pos - SealEnvelope.FooterSize, SealEnvelope.FooterSize)
+                    Dim f = SealEnvelope.TryParseFooter(footerBytes, 0)
+                    If f Is Nothing Then Exit For
+                    If f.TotalLength <= SealEnvelope.FooterSize OrElse f.TotalLength > pos Then Exit For
+                    Dim blob = CarrierExt.ReadRange(filePath, pos - f.TotalLength, f.TotalLength)
+                    Dim payloadLen = blob.Length - SealEnvelope.FooterSize
+                    Dim payload(payloadLen - 1) As Byte
+                    Buffer.BlockCopy(blob, 0, payload, 0, payloadLen)
+                    Dim sp = SealedPayload.Parse(payload)
+                    Dim rec = SealRecord.Parse(sp.Unpack(Nothing, ""))
+                    list.Add(rec.StampTime)
+                    pos -= f.TotalLength
+                Next
+            Catch
+                ' 结构不是"连续尾部追加"就当作不支持，返回已读到的部分
+            End Try
+            Return list
         End Function
 
         ''' <summary>从 ECIES 信封里取出临时公钥点（不解密就能读）。</summary>

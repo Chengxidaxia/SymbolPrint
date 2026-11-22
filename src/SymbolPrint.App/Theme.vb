@@ -51,22 +51,42 @@ Namespace App
         Friend ReadOnly DangerLight As Color = Color.FromArgb(253, 236, 236)
         Friend ReadOnly InfoLight As Color = Color.FromArgb(238, 243, 250)
 
-        Friend ReadOnly FontBase As New Font("Microsoft YaHei UI", 9.0F)
-        Friend ReadOnly FontBold As New Font("Microsoft YaHei UI", 9.0F, FontStyle.Bold)
-        Friend ReadOnly FontTitle As New Font("Microsoft YaHei UI", 15.0F, FontStyle.Bold)
-        Friend ReadOnly FontH2 As New Font("Microsoft YaHei UI", 11.0F, FontStyle.Bold)
-        Friend ReadOnly FontMono As New Font("Consolas", 9.0F)
+        ' 这些不是 ReadOnly：「界面 → 字号」允许在启动时改一次，
+        ' 必须在创建任何窗体之前调 ApplyFontSize，否则已有控件仍持有旧字体对象。
+        Friend FontBase As Font = New Font("Microsoft YaHei UI", 9.0F)
+        Friend FontBold As Font = New Font("Microsoft YaHei UI", 9.0F, FontStyle.Bold)
+        Friend FontTitle As Font = New Font("Microsoft YaHei UI", 15.0F, FontStyle.Bold)
+        Friend FontH2 As Font = New Font("Microsoft YaHei UI", 11.0F, FontStyle.Bold)
+        Friend FontMono As Font = New Font("Consolas", 9.0F)
 
         ' ---- 尺寸（全部由字体实测推出来，不写死像素）----
         ' 原因：DPI 放大时字体会跟着变大，但如果布局里写死 18px 行高、108px 列宽，
         ' 文字就会顶着边被切。凡是「装文字」的尺寸，都必须从这里取。
-        Friend ReadOnly LineH As Integer = TextRenderer.MeasureText("测Ag", FontBase).Height
-        Friend ReadOnly LineH2 As Integer = TextRenderer.MeasureText("测Ag", FontH2).Height
-        Friend ReadOnly LineHSmall As Integer = TextRenderer.MeasureText("测Ag", New Font("Microsoft YaHei UI", 8.0F)).Height
+        Friend LineH As Integer = TextRenderer.MeasureText("测Ag", FontBase).Height
+        Friend LineH2 As Integer = TextRenderer.MeasureText("测Ag", FontH2).Height
+        Friend LineHSmall As Integer = TextRenderer.MeasureText("测Ag", New Font("Microsoft YaHei UI", 8.0F)).Height
         ''' <summary>单行输入框高度。</summary>
-        Friend ReadOnly InputH As Integer = Math.Max(28, LineH + 12)
+        Friend InputH As Integer = Math.Max(28, LineH + 12)
         ''' <summary>按钮高度。</summary>
-        Friend ReadOnly ButtonH As Integer = Math.Max(32, LineH + 15)
+        Friend ButtonH As Integer = Math.Max(32, LineH + 15)
+
+        ''' <summary>
+        ''' 按「界面 → 字号」重建字体与所有由字体推导的尺寸。
+        ''' 只能在创建窗体/控件之前调用一次；调用之后新建的控件才会用上新字号。
+        ''' </summary>
+        Friend Sub ApplyFontSize(pt As Integer)
+            If pt < 7 OrElse pt > 24 Then pt = 9
+            Dim f = CSng(pt)
+            FontBase = New Font("Microsoft YaHei UI", f)
+            FontBold = New Font("Microsoft YaHei UI", f, FontStyle.Bold)
+            FontTitle = New Font("Microsoft YaHei UI", f * 1.65F, FontStyle.Bold)
+            FontH2 = New Font("Microsoft YaHei UI", f * 1.22F, FontStyle.Bold)
+            LineH = TextRenderer.MeasureText("测Ag", FontBase).Height
+            LineH2 = TextRenderer.MeasureText("测Ag", FontH2).Height
+            LineHSmall = TextRenderer.MeasureText("测Ag", New Font("Microsoft YaHei UI", Math.Max(6.0F, f - 1.0F))).Height
+            InputH = Math.Max(28, LineH + 12)
+            ButtonH = Math.Max(32, LineH + 15)
+        End Sub
         ''' <summary>纵向小节间距。</summary>
         Friend Const Gap As Integer = 12
         ''' <summary>文本可用宽度的保守估计（窄容器里也不会挤）。</summary>

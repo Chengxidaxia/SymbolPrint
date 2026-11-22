@@ -1271,6 +1271,12 @@ Namespace App.Pages
             sealOpt.MinSizeToCompress = cfg.Compression.MinSizeToCompress
             sealOpt.SealBytesMax = cfg.Compression.SealBytesMax
             sealOpt.Pbkdf2Iterations = cfg.Crypto.Pbkdf2Iterations
+            ' 「加密」分组的协议参数：只影响新记录，老记录按自己的头解析
+            sealOpt.AesKeyBits = cfg.Crypto.AesKeyBits
+            sealOpt.GcmTagBytes = cfg.Crypto.GcmTagBytes
+            sealOpt.Pbkdf2SaltBytes = cfg.Crypto.Pbkdf2SaltBytes
+            sealOpt.DerivedKeyBytes = cfg.Crypto.DerivedKeyBytes
+            sealOpt.HkdfInfo = cfg.Crypto.HkdfInfo
             ' 保留旧记录、直接追加：已盖章的文件当普通文件处理，不再自动换新章
             sealOpt.ReplaceExisting = False
             sealOpt.BackupBeforeVisualMark = _backup.Checked

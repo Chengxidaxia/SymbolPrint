@@ -17,27 +17,41 @@ Namespace Crypto
             Return Util.Bin.RandomBytes(NonceLen)
         End Function
 
-        ''' <summary>加密，返回 (密文, 认证标签)。</summary>
-        Public Shared Function Encrypt(key As Byte(), nonce As Byte(), plain As Byte(), Optional aad As Byte() = Nothing) As (Cipher As Byte(), Tag As Byte())
-            If key Is Nothing OrElse key.Length <> KeyLen Then Throw New ArgumentException("AES-256 密钥必须为 32 字节。", NameOf(key))
-            If nonce Is Nothing OrElse nonce.Length <> NonceLen Then Throw New ArgumentException("Nonce 必须为 12 字节。", NameOf(nonce))
+        ''' <summary>
+        ''' 加密，返回 (密文, 认证标签)。
+        ''' 密钥长度允许 16/24/32（对应 AES-128/192/256），tag 长度 12–16，nonce 不小于 8——
+        ''' 这些都由「高级设置 → 加密」控制，所以这里不能再写死 32/12/16。
+        ''' </summary>
+        Public Shared Function Encrypt(key As Byte(), nonce As Byte(), plain As Byte(),
+                                       Optional aad As Byte() = Nothing,
+                                       Optional tagLen As Integer = TagLen) As (Cipher As Byte(), Tag As Byte())
+            If key Is Nothing OrElse (key.Length <> 16 AndAlso key.Length <> 24 AndAlso key.Length <> 32) Then
+                Throw New ArgumentException("AES 密钥必须为 16 / 24 / 32 字节。", NameOf(key))
+            End If
+            If nonce Is Nothing OrElse nonce.Length < 8 Then Throw New ArgumentException("Nonce 至少 8 字节。", NameOf(nonce))
+            If tagLen < 12 OrElse tagLen > 16 Then Throw New ArgumentException("认证标签长度必须在 12–16 字节之间。", NameOf(tagLen))
             If plain Is Nothing Then plain = Array.Empty(Of Byte)()
             Dim cipher(plain.Length - 1) As Byte
-            Dim tag(TagLen - 1) As Byte
-            Using g As New AesGcm(key, TagLen)
+            Dim tag(tagLen - 1) As Byte
+            Using g As New AesGcm(key, tagLen)
                 g.Encrypt(nonce, plain, cipher, tag, aad)
             End Using
             Return (cipher, tag)
         End Function
 
         ''' <summary>解密；认证失败抛 CryptographicException。</summary>
-        Public Shared Function Decrypt(key As Byte(), nonce As Byte(), cipher As Byte(), tag As Byte(), Optional aad As Byte() = Nothing) As Byte()
-            If key Is Nothing OrElse key.Length <> KeyLen Then Throw New ArgumentException("AES-256 密钥必须为 32 字节。", NameOf(key))
-            If nonce Is Nothing OrElse nonce.Length <> NonceLen Then Throw New ArgumentException("Nonce 必须为 12 字节。", NameOf(nonce))
+        Public Shared Function Decrypt(key As Byte(), nonce As Byte(), cipher As Byte(), tag As Byte(),
+                                       Optional aad As Byte() = Nothing) As Byte()
+            If key Is Nothing OrElse (key.Length <> 16 AndAlso key.Length <> 24 AndAlso key.Length <> 32) Then
+                Throw New ArgumentException("AES 密钥必须为 16 / 24 / 32 字节。", NameOf(key))
+            End If
+            If nonce Is Nothing OrElse nonce.Length < 8 Then Throw New ArgumentException("Nonce 至少 8 字节。", NameOf(nonce))
             If cipher Is Nothing Then cipher = Array.Empty(Of Byte)()
-            If tag Is Nothing OrElse tag.Length <> TagLen Then Throw New ArgumentException("认证标签必须为 16 字节。", NameOf(tag))
+            If tag Is Nothing OrElse tag.Length < 12 OrElse tag.Length > 16 Then
+                Throw New ArgumentException("认证标签长度必须在 12–16 字节之间。", NameOf(tag))
+            End If
             Dim plain(cipher.Length - 1) As Byte
-            Using g As New AesGcm(key, TagLen)
+            Using g As New AesGcm(key, tag.Length)
                 g.Decrypt(nonce, cipher, tag, plain, aad)
             End Using
             Return plain
