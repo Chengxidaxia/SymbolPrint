@@ -40,6 +40,12 @@ Namespace SymbolPrint.Cli
 
         Function Main(args As String()) As Integer
             Console.OutputEncoding = Text.Encoding.UTF8
+            ' CLI 也按用户的设置走：否则"文本编码方案 / 载体优先级"这类设置在命令行下等于不存在
+            Try
+                SymbolPrint.Core.Service.CarrierRegistry.Configure(
+                    SymbolPrint.Core.Model.AppSettings.Load().Carriers)
+            Catch
+            End Try
             If args.Length = 0 Then
                 Console.WriteLine("SymbolPrint CLI 1.0")
                 Console.WriteLine("用法:")

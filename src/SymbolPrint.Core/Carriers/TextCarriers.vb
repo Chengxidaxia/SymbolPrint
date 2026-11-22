@@ -39,11 +39,64 @@ Namespace Carriers
             _syms(0) = ChrW(a)
             _syms(1) = ChrW(b)
         End Sub
+
+        ''' <summary>
+        ''' 文本编码方案：零宽二进制（2bit/字符）或变体选择符（4bit/字符）。
+        ''' 说明文件末尾的块用哪种编码，读的时候两种都试，所以切方案不影响旧文件。
+        ''' </summary>
+        Public Sub ApplyEncodingProfile(p As SymbolPrint.Core.Model.TextEncodingProfile)
+            _profile = If(p = SymbolPrint.Core.Model.TextEncodingProfile.VariationSelectors,
+                          SymbolPrint.Core.Model.TextEncodingProfile.VariationSelectors,
+                          SymbolPrint.Core.Model.TextEncodingProfile.ZeroWidthBinary)
+            If _profile = SymbolPrint.Core.Model.TextEncodingProfile.VariationSelectors Then
+                ' U+FE00–U+FE0F 共 16 个，正好 4 bit
+                Dim vs(15) As Char
+                For i = 0 To 15
+                    vs(i) = ChrW(&HFE00 + i)
+                Next
+                _altSyms = vs
+            Else
+                _altSyms = Nothing
+            End If
+        End Sub
+
+        Private ReadOnly Property ActiveSyms As Char()
+            Get
+                Return If(_altSyms, _syms)
+            End Get
+        End Property
         Private Shared ReadOnly Magic As Byte() = {&H53, &H50, &H5A, &H1} ' "SPZ\1"
 
-        Private Const TailChars As Integer = 16
-        Private Const TailBytes As Integer = TailChars * 3
-        Private Const MagicChars As Integer = 16
+        ' 编码方案可切换：零宽二进制 2bit/字符；变体选择符 4bit/字符（密度翻倍，同为 3 字节 UTF-8）
+        Private _profile As SymbolPrint.Core.Model.TextEncodingProfile =
+            SymbolPrint.Core.Model.TextEncodingProfile.ZeroWidthBinary
+        Private _altSyms As Char() = Nothing
+        ''' <summary>每个字符承载几位。</summary>
+        Private ReadOnly Property BitsPerChar As Integer
+            Get
+                Return If(_profile = SymbolPrint.Core.Model.TextEncodingProfile.VariationSelectors, 4, 2)
+            End Get
+        End Property
+        Private ReadOnly Property CharsPerByte As Integer
+            Get
+                Return 8 \ BitsPerChar
+            End Get
+        End Property
+        Private ReadOnly Property MagicChars As Integer
+            Get
+                Return Magic.Length * CharsPerByte
+            End Get
+        End Property
+        Private ReadOnly Property TailChars As Integer
+            Get
+                Return 4 * CharsPerByte
+            End Get
+        End Property
+        Private ReadOnly Property TailBytes As Integer
+            Get
+                Return TailChars * 3
+            End Get
+        End Property
 
         Private Shared ReadOnly Exts As String() = {".txt", ".md", ".markdown", ".text", ".log", ".rst"}
 
@@ -70,12 +123,15 @@ Namespace Carriers
         ' ---- 编码 ----
 
         Private Function EncodeBytes(data As Byte()) As String
-            Dim sb As New StringBuilder(data.Length * 4)
+            Dim syms = ActiveSyms
+            Dim perByte = CharsPerByte
+            Dim bits = BitsPerChar
+            Dim mask = (1 << bits) - 1
+            Dim sb As New StringBuilder(data.Length * perByte)
             For Each b In data
-                sb.Append(_syms((b >> 6) And 3))
-                sb.Append(_syms((b >> 4) And 3))
-                sb.Append(_syms((b >> 2) And 3))
-                sb.Append(_syms(b And 3))
+                For k = perByte - 1 To 0 Step -1
+                    sb.Append(syms((CInt(b) >> (k * bits)) And mask))
+                Next
             Next
             Return sb.ToString()
         End Function
@@ -89,28 +145,34 @@ Namespace Carriers
             Return EncodeBytes(b)
         End Function
 
-        Private Function SymIndex(c As Char) As Integer
-            For i As Integer = 0 To 3
-                If _syms(i) = c Then Return i
+        Private Function SymIndex(c As Char, Optional syms As Char() = Nothing) As Integer
+            Dim table = If(syms, ActiveSyms)
+            For i As Integer = 0 To table.Length - 1
+                If table(i) = c Then Return i
             Next
             Return -1
         End Function
 
         ''' <summary>把一串零宽字符解回字节；遇到非本字母表的字符返回 Nothing。</summary>
-        Private Function DecodeChars(chars As String) As Byte()
-            If chars.Length Mod 4 <> 0 Then Return Nothing
-            Dim n = chars.Length \ 4
+        Private Function DecodeChars(chars As String, Optional syms As Char() = Nothing) As Byte()
+            Dim perByte = If(syms Is Nothing, CharsPerByte, 8 \ BitCountOf(syms.Length))
+            If chars.Length Mod perByte <> 0 Then Return Nothing
+            Dim n = chars.Length \ perByte
             Dim out(n - 1) As Byte
             For i As Integer = 0 To n - 1
                 Dim v As Integer = 0
-                For j As Integer = 0 To 3
-                    Dim s = SymIndex(chars(i * 4 + j))
+                For j As Integer = 0 To perByte - 1
+                    Dim s = SymIndex(chars(i * perByte + j), syms)
                     If s < 0 Then Return Nothing
-                    v = (v << 2) Or s
+                    v = (v << (8 \ perByte)) Or s
                 Next
                 out(i) = CByte(v)
             Next
             Return out
+        End Function
+
+        Private Shared Function BitCountOf(symCount As Integer) As Integer
+            Return If(symCount >= 16, 4, 2)
         End Function
 
         ''' <summary>从文件尾部读出总字符数（块长度）。</summary>
@@ -137,6 +199,28 @@ Namespace Carriers
 
         ''' <summary>定位我们的块：返回 (起始字节, 字节长度)；没有则 (-1, 0)。</summary>
         Public Function LocateBlock(filePath As String) As (Start As Long, Length As Long)
+            ' 先按当前方案找，找不到再按另一种方案找：切换编码不会让已盖过的文本变成"没章"
+            Dim hit = TryLocateBlock(filePath, _profile)
+            If hit.Start >= 0 Then Return hit
+            Dim other = If(_profile = SymbolPrint.Core.Model.TextEncodingProfile.VariationSelectors,
+                           SymbolPrint.Core.Model.TextEncodingProfile.ZeroWidthBinary,
+                           SymbolPrint.Core.Model.TextEncodingProfile.VariationSelectors)
+            Return TryLocateBlock(filePath, other)
+        End Function
+
+        Private Function TryLocateBlock(filePath As String, prof As SymbolPrint.Core.Model.TextEncodingProfile) As (Start As Long, Length As Long)
+            Dim oldP = _profile
+            Dim oldAlt = _altSyms
+            ApplyEncodingProfile(prof)
+            Try
+                Return LocateBlockHere(filePath)
+            Finally
+                _profile = oldP
+                _altSyms = oldAlt
+            End Try
+        End Function
+
+        Private Function LocateBlockHere(filePath As String) As (Start As Long, Length As Long)
             Using fs As New FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite)
                 Dim chars = ReadBlockChars(fs)
                 If chars < 0 Then Return (-1, 0)
@@ -185,7 +269,7 @@ Namespace Carriers
 
             ' 不清旧记录：盖章默认「保留旧记录、追加新记录」，由 SealOptions.ReplaceExisting 决定
 
-            Dim payloadChars = blob.Length * 4
+            Dim payloadChars = blob.Length * CharsPerByte
             Dim totalChars = MagicChars + payloadChars + TailChars
             Dim sb As New StringBuilder(totalChars)
             sb.Append(EncodeBytes(Magic))
