@@ -3,7 +3,7 @@
 把「章」写进文件自身：只往文件的空白区追加数据，**不改动原有字节**，文件照常打开、照常使用。
 同时支持把印章图案直接贴到图片 / PDF 上，并能在事后验证文件有没有被改动。
 
-> 当前版本 **1.0.0**（Release 标签 `r1`）。主程序是单个 `SymbolPrint.exe`，
+> 当前版本 **1.0.1**（Release 标签 `r1.0.1`）。主程序是单个 `SymbolPrint.exe`，
 > 少数运行时依赖以 `.dll` 形式放在同目录。
 
 ---
@@ -54,8 +54,8 @@
 
 | 包 | 体积 | 依赖 |
 |---|---|---|
-| `SymbolPrint-1.0.0-win-x64.zip` | **3.8 MB** | 需要 .NET 9 Desktop Runtime（装一次） |
-| `SymbolPrint-1.0.0-win-x64-selfcontained.zip` | 46 MB | 免装运行时，解压即用 |
+| `SymbolPrint-1.0.1-win-x64.zip` | **3.8 MB** | 需要 .NET 9 Desktop Runtime（装一次） |
+| `SymbolPrint-1.0.1-win-x64-selfcontained.zip` | 46 MB | 免装运行时，解压即用 |
 
 ## 快速开始
 
@@ -105,6 +105,18 @@ dotnet publish src/SymbolPrint.App/SymbolPrint.App.vbproj -c Release -r win-x64 
   -p:DebugType=None -p:DebugSymbols=false `
   -o dist/sc
 ```
+
+## 高级设置
+
+「高级设置」页默认只列出**当前版本真正会读取**的参数，避免出现"改了不起作用"的假开关。
+勾选顶部「显示高级与预留参数」才会展开另外两类：
+
+- **高级参数**：会影响结果，但一般不需要动（如 PBKDF2 迭代次数、备份后缀）；
+- **预留参数**：配置里有、当前版本没有代码读取，改了不会生效，界面上会逐行标注。
+
+1.0.1 已接入并生效的参数：压缩算法、放弃压缩、章字节上限、验章全部开关（严格模式、
+无章提示、原文件摘要、章身份、记录自哈希）、进度条显示/不确定进度/字节明细、章描述显示、
+默认展开高级、重复盖章前确认。
 
 ## 命令行
 

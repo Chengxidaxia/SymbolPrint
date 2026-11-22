@@ -439,7 +439,7 @@ Namespace App.Pages
             ' 以前是 Dock.Bottom 写死 LineH*12+26（约 266px），右栏永远要滚动才能看到最后一行。
             Dim bottom As New Panel() With {.Dock = DockStyle.Fill, .BackColor = Theme.Bg}
 
-            _progress = New ProgressStrip(owner.Settings.Progress.DelayMs, owner.Settings.Progress.ThrottleMs)
+            _progress = New ProgressStrip(owner.Settings.Progress.DelayMs, owner.Settings.Progress.ThrottleMs, owner.Settings.Progress)
             _progress.Dock = DockStyle.Top
 
             Dim actRow As New FlowLayoutPanel() With {
@@ -692,6 +692,17 @@ Namespace App.Pages
             RefreshGrid()
         End Sub
 
+        ''' <summary>文件里是否已有本程序的盖章记录（只读尾部/注释区，不写文件）。</summary>
+        Private Shared Function HasExistingRecord(path As String) As Boolean
+            Try
+                Dim c = CarrierRegistry.Find(path)
+                If c Is Nothing Then Return False
+                Return c.ReadBlob(path) IsNot Nothing
+            Catch
+                Return False
+            End Try
+        End Function
+
         ''' <summary>
         ''' 「删除章」：把列表里选中文件上已经盖的章摘掉，恢复成未盖章。
         ''' 因为盖章默认保留旧记录，一个文件可能叠了多条，这里摘到干净为止。
@@ -902,9 +913,11 @@ Namespace App.Pages
                 End If
 
                 _sealInfo.ForeColor = Theme.TextSub
+                ' 「显示章描述」关掉时，描述那行整行不出现（有些描述很长，会把卡片撑高）
+                Dim descLine = If(_owner.Settings.Ui.ShowStampDescription,
+                                   Environment.NewLine & $"描述：{If(seal.Description = "", "（无）", seal.Description)}", "")
                 _sealInfo.Text = $"标签：{If(seal.Label = "", "（无）", seal.Label)}" & Environment.NewLine &
-                                 $"指纹：{seal.StampIdShort}" & Environment.NewLine &
-                                 $"描述：{If(seal.Description = "", "（无）", seal.Description)}" &
+                                 $"指纹：{seal.StampIdShort}" & descLine &
                                  If(seal.HasSvg, Environment.NewLine & "含内置图案，可直接用于贴图。", "")
 
                 _owner.SetSeal(p, seal)
@@ -1160,6 +1173,11 @@ Namespace App.Pages
             Dim cfg = _owner.Settings
             Dim sealOpt As New SealOptions()
             sealOpt.BrotliQuality = cfg.Compression.BrotliQuality
+            ' 压缩算法 / 放弃压缩 / 章字节上限：高级设置里能改，这里必须真的传下去，
+            ' 否则那几项就是"改了没效果"的假选项
+            sealOpt.CompressionAlgorithm = CByte(cfg.Compression.Algorithm)
+            sealOpt.SkipIfLarger = cfg.Compression.SkipIfLarger
+            sealOpt.SealBytesMax = cfg.Compression.SealBytesMax
             sealOpt.Pbkdf2Iterations = cfg.Crypto.Pbkdf2Iterations
             ' 保留旧记录、直接追加：已盖章的文件当普通文件处理，不再自动换新章
             sealOpt.ReplaceExisting = False
@@ -1169,6 +1187,24 @@ Namespace App.Pages
             sealOpt.Carrier.Log = Sub(m) AppendLog("  " & m)
 
             Dim targets = _files.ToArray()
+
+            ' 覆盖前确认：这些文件里已经盖过章，再盖会在文件里追加一条新记录
+            ' （盖章默认保留旧记录）。属于"会改变既有结果"的操作，先问一句。
+            If cfg.Ui.ConfirmBeforeOverwrite Then
+                Dim already = targets.Where(Function(t) HasExistingRecord(t)).ToArray()
+                If already.Length > 0 Then
+                    Dim names = already.Select(Function(t) IO.Path.GetFileName(t)).Take(3).ToArray()
+                    Dim ask = $"有 {already.Length} 个文件已经带盖章记录：" & Environment.NewLine &
+                              String.Join("、", names) & If(already.Length > 3, " 等", "") & Environment.NewLine & Environment.NewLine &
+                              "继续盖章会在文件里再追加一条记录（旧记录保留）。是否继续？"
+                    If MessageBox.Show(ask, "确认重复盖章", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                                       MessageBoxDefaultButton.Button2) <> DialogResult.Yes Then
+                        AppendLog("已取消：用户放弃对已盖章文件的重复盖章。")
+                        Return
+                    End If
+                End If
+            End If
+
             _busy = True
             _startBtn.Enabled = False
             _progress.BeginWork("盖章中…")

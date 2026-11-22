@@ -166,7 +166,7 @@ Namespace App.Pages
             ' ---------------- 底部 ----------------
             ' 高度跟着 ProgressStrip 走（它内部要放状态行 + 进度条），写死 56 会把状态文字切一半
             Dim bottom As New Panel() With {.Dock = DockStyle.Bottom, .Height = Theme.LineH + 46, .BackColor = Theme.Bg}
-            _progress = New ProgressStrip(owner.Settings.Progress.DelayMs, owner.Settings.Progress.ThrottleMs)
+            _progress = New ProgressStrip(owner.Settings.Progress.DelayMs, owner.Settings.Progress.ThrottleMs, owner.Settings.Progress)
             _progress.Dock = DockStyle.Fill
             bottom.Controls.Add(_progress)
 
@@ -267,7 +267,7 @@ Namespace App.Pages
 
             Dim sink = _progress.Sink
             Try
-                Dim r = Await Task.Run(Function() SealService.Verify(target, seal, sink))
+                Dim r = Await Task.Run(Function() SealService.Verify(target, seal, sink, _owner.Settings.Verify))
                 Render(r)
             Catch ex As OperationCanceledException
                 _banner.ShowResult(BannerKind.None, "已取消", "本次验证被中止。")

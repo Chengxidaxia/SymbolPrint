@@ -75,12 +75,17 @@ Namespace Util
         ''' <summary>按标志压缩：返回 (方法字节, 数据)。压缩后反而更大时原样保存。</summary>
         Public Function Pack(data As Byte(), Optional quality As Integer = DefaultBrotliQuality,
                              Optional sink As IProgressSink = Nothing,
-                             Optional stage As String = "") As (Method As Byte, Data As Byte())
+                             Optional stage As String = "",
+                             Optional algorithm As Byte = MethodBrotli,
+                             Optional skipIfLarger As Boolean = True) As (Method As Byte, Data As Byte())
+            ' 算法可由设置直接选「不压缩」：省 CPU，代价是记录变大
+            If algorithm = MethodNone Then Return (MethodNone, data)
+
             Dim c = BrotliCompress(data, quality, sink, stage)
-            If c.Length > 0 AndAlso c.Length < data.Length Then
-                Return (MethodBrotli, c)
-            End If
-            Return (MethodNone, data)
+            If c.Length = 0 Then Return (MethodNone, data)
+            ' 压缩后反而更大：默认退回原文；关掉这项就按压缩结果存
+            If skipIfLarger AndAlso c.Length >= data.Length Then Return (MethodNone, data)
+            Return (MethodBrotli, c)
         End Function
 
         Public Function Unpack(method As Byte, data As Byte(), Optional sink As IProgressSink = Nothing,

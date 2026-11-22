@@ -1,6 +1,7 @@
 Imports System
 Imports System.Drawing
 Imports System.Windows.Forms
+Imports SymbolPrint.Core.Model
 Imports SymbolPrint.Core.Util
 
 Namespace App
@@ -24,8 +25,13 @@ Namespace App
         Private _cancelable As CancelableProgress
         Private _busy As Boolean
         Private _lastFraction As Double = -2
+        ' 进度相关的可调项全部来自「高级设置 → 进度」，这里每一项都必须真的被用上，
+        ' 否则界面上就是个假开关
+        Private ReadOnly _opts As ProgressOptions
 
-        Friend Sub New(Optional delayMs As Integer = 250, Optional throttleMs As Integer = 60)
+        Friend Sub New(Optional delayMs As Integer = 250, Optional throttleMs As Integer = 60,
+                       Optional opts As ProgressOptions = Nothing)
+            _opts = If(opts, New ProgressOptions())
             ' 高度由字体算出来：DPI 放大时文字变高，这里跟着长，不会把字切掉。
             ' 顶部再留 4px：被父容器压住一两像素时，文字仍然完整。
             Height = Theme.LineH + 38
@@ -49,6 +55,8 @@ Namespace App
             _cancelBtn.Height = Theme.LineH + 8
             _cancelBtn.Top = 3
             _cancelBtn.Visible = False
+            ' 关掉「显示进度条」时只留阶段文字，不再画条
+            _bar.Visible = _opts.Enabled
 
             Controls.Add(_stage)
             Controls.Add(_detail)
@@ -91,6 +99,8 @@ Namespace App
             _detail.Text = ""
             _bar.Style = ProgressBarStyle.Blocks
             _bar.Value = 0
+            _bar.Visible = _opts.Enabled
+            _detail.Visible = _opts.ShowBytesDetail
             _cancelBtn.Text = "取消"
             _cancelBtn.Enabled = True
             _cancelBtn.Visible = True
@@ -134,13 +144,18 @@ Namespace App
         Private Sub ApplyReport(stage As String, fraction As Double, detail As String)
             If IsDisposed OrElse Not _busy Then Return
             If Not String.IsNullOrEmpty(stage) Then _stage.Text = stage
-            If detail IsNot Nothing Then _detail.Text = detail
+            ' 「显示字节明细」关掉时，右侧那列整块不显示（它承载的就是体积/速率这类数字）
+            _detail.Visible = _opts.ShowBytesDetail
+            If detail IsNot Nothing Then _detail.Text = If(_opts.ShowBytesDetail, detail, "")
 
-            If fraction < 0 Then
+            If fraction < 0 AndAlso _opts.ShowIndeterminate Then
                 If _bar.Style <> ProgressBarStyle.Marquee Then
                     _bar.Style = ProgressBarStyle.Marquee
                     _bar.MarqueeAnimationSpeed = 30
                 End If
+            ElseIf fraction < 0 Then
+                ' 不允许不确定进度：保持当前块状进度，不来回跳
+                If _bar.Style <> ProgressBarStyle.Blocks Then _bar.Style = ProgressBarStyle.Blocks
             Else
                 If _bar.Style <> ProgressBarStyle.Blocks Then _bar.Style = ProgressBarStyle.Blocks
                 Dim v = Math.Round(Math.Max(0.0, Math.Min(1.0, fraction)) * 1000)

@@ -40,13 +40,32 @@ Namespace App.Pages
             Friend InEffect As Boolean = True
         End Class
 
-        ''' <summary>当前版本真正会读取的参数（其余标为"预留"，避免改了没效果还以为生效）。</summary>
+        ''' <summary>
+        ''' 取字段所属区段名，用于和 InEffectKeys 里的 "General.xxx" 对上。
+        ''' 之前直接用 holder.GetType().Name，得到的是 "GeneralOptions.AutoBackupOriginal"，
+        ''' 永远匹配不上白名单——于是连真在生效的参数都被标成「预留」，满屏都是"改了没用"。
+        ''' </summary>
+        Private Shared Function SectionOf(holder As Object) As String
+            Dim n = holder.GetType().Name
+            If n.EndsWith("Options", StringComparison.Ordinal) Then Return n.Substring(0, n.Length - 7)
+            If n.EndsWith("Settings", StringComparison.Ordinal) Then Return n.Substring(0, n.Length - 8)
+            Return n
+        End Function
+
+        ''' <summary>当前版本真正会读取的参数（其余为「预留」：配置文件里有，但没有任何代码读）。</summary>
+        ' 当前版本真正会读取的参数。其余为「预留」：配置文件里有，但没有任何代码读。
+        ' 每接一个就加到这里，界面立刻从「预留」变成正常可调。
         Private Shared ReadOnly InEffectKeys As New HashSet(Of String)(StringComparer.Ordinal) From {
             "General.AutoBackupOriginal", "General.BackupSuffix",
             "Crypto.Pbkdf2Iterations", "Crypto.Curve",
-            "Compression.BrotliQuality",
+            "Compression.BrotliQuality", "Compression.Algorithm",
+            "Compression.SkipIfLarger", "Compression.SealBytesMax",
             "Image.OpacityPercent", "Image.RotationDegrees",
-            "Progress.DelayMs", "Progress.ThrottleMs"
+            "Verify.StrictMode", "Verify.WarnIfNoSeal", "Verify.CheckOriginalHash",
+            "Verify.CheckStampId", "Verify.CheckOwnHash",
+            "Progress.DelayMs", "Progress.ThrottleMs", "Progress.Enabled",
+            "Progress.ShowIndeterminate", "Progress.ShowBytesDetail",
+            "Ui.ShowStampDescription", "Ui.ShowAdvancedByDefault", "Ui.ConfirmBeforeOverwrite"
         }
 
         ''' <summary>枚举值的中文显示（写回时仍用英文名，保持配置文件可读）。</summary>
@@ -78,12 +97,16 @@ Namespace App.Pages
         Private ReadOnly _host As Panel
         Private ReadOnly _showAdvanced As CheckBox
         Private ReadOnly _status As Label
+        Private ReadOnly _saveBtn As Button
         Private ReadOnly _leftCard As Panel
         Private ReadOnly _rightCard As Panel
 
         Private ReadOnly _fields As New List(Of Field)()
         Private ReadOnly _groupOrder As New List(Of String)()
+        Private ReadOnly _tip As New ToolTip()
         Private _currentGroup As String = ""
+        ''' <summary>重建分组列表期间抑制 SelectionChanged，避免同一个操作渲染两遍。</summary>
+        Private _suppressGroupEvent As Boolean
 
         Friend Sub New(owner As MainForm)
             _owner = owner
@@ -142,9 +165,24 @@ Namespace App.Pages
 
             Dim bar As New Panel() With {.Dock = DockStyle.Top, .Height = Theme.LineH + 14, .BackColor = Color.Transparent}
             _showAdvanced = New CheckBox() With {
-                .Text = "显示高级参数", .AutoSize = True, .Left = 0, .Top = 2, .ForeColor = Theme.TextSub
+                .Text = "显示高级与预留参数", .AutoSize = True, .Left = 0, .Top = 2,
+                .ForeColor = Theme.TextSub
             }
-            AddHandler _showAdvanced.CheckedChanged, Sub(s, e) Rebuild()
+            _tip.SetToolTip(_showAdvanced,
+                            "默认只列出会真正影响行为的常用参数。" & Environment.NewLine &
+                            "勾选后额外显示两类：" & Environment.NewLine &
+                            "  · 高级参数：会影响结果，但一般不需要动；" & Environment.NewLine &
+                            "  · 预留参数：配置里有、当前版本没有任何代码读取，改了不会生效。")
+            AddHandler _showAdvanced.CheckedChanged, Sub(s, e)
+                                                          If _suppressGroupEvent Then Return
+                                                          _suppressGroupEvent = True
+                                                          RefreshGroups()
+                                                          _suppressGroupEvent = False
+                                                          If _groups.SelectedIndex >= 0 Then
+                                                              _currentGroup = CStr(_groups.Items(_groups.SelectedIndex))
+                                                          End If
+                                                          Rebuild()
+                                                      End Sub
             bar.Controls.Add(_showAdvanced)
 
             _host = New Panel() With {.Dock = DockStyle.Fill, .AutoScroll = True, .BackColor = Theme.Card}
@@ -182,6 +220,7 @@ Namespace App.Pages
             resetBtn.Margin = New Padding(0, 0, 8, 0)
             Dim saveBtn = Theme.PrimaryButton("保存设置", 120)
             saveBtn.Margin = New Padding(0)
+            _saveBtn = saveBtn
             btns.Controls.Add(reloadBtn)
             btns.Controls.Add(resetBtn)
             btns.Controls.Add(saveBtn)
@@ -199,6 +238,12 @@ Namespace App.Pages
             Controls.Add(head)
 
             Theme.WrapHint(headSub, Me)
+
+            ' 「默认展开高级选项」：初始勾选状态来自设置。
+            ' 必须在 _host/_fields 就绪之后再设，否则 CheckedChanged 会在半初始化状态下重建
+            _suppressGroupEvent = True
+            _showAdvanced.Checked = _owner.Settings.Ui.ShowAdvancedByDefault
+            _suppressGroupEvent = False
 
             LoadFields()
         End Sub
@@ -227,7 +272,7 @@ Namespace App.Pages
                         .MinValue = attr.MinValue, .MaxValue = attr.MaxValue,
                         .Choices = attr.Choices, .Value = p.GetValue(holder), .ValueType = p.PropertyType
                     }
-                    f.InEffect = InEffectKeys.Contains(holder.GetType().Name & "." & p.Name)
+                    f.InEffect = InEffectKeys.Contains(SectionOf(holder) & "." & p.Name)
                     _fields.Add(f)
 
                     If Not _groupOrder.Contains(f.Group) Then _groupOrder.Add(f.Group)
@@ -235,14 +280,45 @@ Namespace App.Pages
             Next
 
             _groups.Items.Clear()
-            For Each g In _groupOrder
-                _groups.Items.Add(g)
-            Next
+            _suppressGroupEvent = True
+            RefreshGroups()
+            _suppressGroupEvent = False
 
             If _groups.Items.Count > 0 Then
-                _groups.SelectedIndex = 0
+                _currentGroup = CStr(_groups.Items(_groups.SelectedIndex))
             Else
-                Rebuild()
+                _currentGroup = ""
+            End If
+            Rebuild()
+        End Sub
+
+        ''' <summary>
+        ''' 按当前勾选状态重建左侧分组列表：没勾「显示预留参数」时，
+        ''' 只保留至少有一个"生效且非高级"字段的分组——否则点进去全是空页。
+        ''' 重建期间抑制 SelectionChanged，由调用方统一 Rebuild 一次，避免连渲染两遍。
+        ''' </summary>
+        Private Sub RefreshGroups()
+            Dim keep = _currentGroup
+            Dim showAll = _showAdvanced.Checked
+
+            _groups.BeginUpdate()
+            _groups.Items.Clear()
+            For Each g In _groupOrder
+                Dim hasVisible As Boolean
+                If showAll Then
+                    hasVisible = _fields.Any(Function(f) f.Group = g)
+                Else
+                    hasVisible = _fields.Any(Function(f) f.Group = g AndAlso f.InEffect AndAlso Not f.Entry.Advanced)
+                End If
+                If hasVisible Then _groups.Items.Add(g)
+            Next
+            _groups.EndUpdate()
+
+            Dim idx = If(keep = "", -1, _groups.Items.IndexOf(keep))
+            If idx >= 0 Then
+                _groups.SelectedIndex = idx
+            ElseIf _groups.Items.Count > 0 Then
+                _groups.SelectedIndex = 0
             End If
         End Sub
 
@@ -269,6 +345,7 @@ Namespace App.Pages
         End Sub
 
         Private Sub SwitchGroup()
+            If _suppressGroupEvent Then Return
             If _groups.SelectedIndex < 0 Then Return
             _currentGroup = CStr(_groups.Items(_groups.SelectedIndex))
             Rebuild()
@@ -279,9 +356,14 @@ Namespace App.Pages
         ''' <summary>参数行的三件套：行容器、说明文字、编辑控件（窗口缩放时要重算高度）。</summary>
         Private Class RowParts
             Public Row As Panel
+            Public Lbl As Label
             Public Help As Label
             Public Editor As Control
             Public IsLast As Boolean
+            ' 淡入动画的目标色：动画期间会被临时改成接近底色，收尾要能精确还原
+            Public TextColor As Color
+            Public HelpColor As Color
+            Public EditorColor As Color
         End Class
 
         Private ReadOnly _parts As New List(Of RowParts)()
@@ -296,13 +378,19 @@ Namespace App.Pages
             _host.Controls.Clear()
             _parts.Clear()
 
-            Dim showAdv = _showAdvanced.Checked
-            Dim items = _fields.Where(Function(f) f.Group = _currentGroup AndAlso (showAdv OrElse Not f.Entry.Advanced)).ToList()
+            ' 默认只列出真正会生效的参数。
+            ' 之前把 54 个「预留」字段一并铺出来，满屏都是「当前版本不读取」，
+            ' 用户改了没效果还以为程序坏了——这比少显示几个参数糟得多。
+            ' 勾上「显示预留参数」才会把它们放出来，并逐行标注。
+            Dim showAll = _showAdvanced.Checked
+            Dim items = _fields.Where(Function(f) f.Group = _currentGroup AndAlso
+                                                   (showAll OrElse (f.InEffect AndAlso Not f.Entry.Advanced))).ToList()
 
             If items.Count = 0 Then
                 Dim empty As New Label() With {
-                    .Text = "这个分组里没有可显示的参数。", .ForeColor = Theme.TextFaint,
-                    .AutoSize = True, .Left = 4, .Top = 12
+                    .Text = "这个分组在当前设置下没有可调参数。" & Environment.NewLine &
+                            "若想看存在但尚未生效的字段，请勾选上方「显示预留参数」。",
+                    .ForeColor = Theme.TextFaint, .AutoSize = True, .Left = 4, .Top = 12
                 }
                 _host.Controls.Add(empty)
                 _host.ResumeLayout()
@@ -353,7 +441,11 @@ Namespace App.Pages
                 End If
 
                 _host.Controls.Add(row)
-                _parts.Add(New RowParts With {.Row = row, .Help = help, .Editor = editor, .IsLast = lastRow})
+                _parts.Add(New RowParts With {
+                    .Row = row, .Lbl = lbl, .Help = help, .Editor = editor, .IsLast = lastRow,
+                    .TextColor = lbl.ForeColor, .HelpColor = help.ForeColor,
+                    .EditorColor = If(CanTint(editor), editor.ForeColor, Color.Empty)
+                })
             Next
 
             If Not _rowsHooked Then
@@ -362,6 +454,95 @@ Namespace App.Pages
             End If
             LayoutRows()
             _host.ResumeLayout()
+            FadeInRows()
+        End Sub
+
+        ' ==================== 动效 ====================
+        '
+        ' 这里只动「颜色」和「文字」，绝不碰尺寸/位置：
+        ' 设置页的行高是按说明文字换行算出来的，任何一次布局变化都会连锁改行高，
+        ' 之前“缩放就截断/卡顿”的根因正是这个，所以动效一律走 ForeColor 补间。
+
+        ''' <summary>每次重建参数行时自增；旧动画发现世代变了就直接退出，不去改已销毁的控件。</summary>
+        Private _fadeGen As Integer
+
+        ' ComboBox 的 ForeColor 管不到下拉列表里的文字，强行淡入会出现"框里浅、下拉深"的割裂，直接跳过
+        Private Shared Function CanTint(c As Control) As Boolean
+            Return c IsNot Nothing AndAlso Not (TypeOf c Is ComboBox)
+        End Function
+
+        ''' <summary>
+        ''' 参数行自上而下淡入：切换分组 / 勾选「显示高级参数」时，让用户看清"内容整体换掉了"，
+        ''' 而不是一片文字瞬间跳变。行与行之间错开一点，形成流动方向感。
+        ''' </summary>
+        Private Sub FadeInRows()
+            If _parts.Count = 0 Then Return
+
+            _fadeGen += 1
+            Dim gen = _fadeGen
+            Dim n = _parts.Count
+            ' 行数多时压缩错开量，保证整体时长不随行数膨胀（最多约 300ms）
+            Dim stagger = Math.Min(0.09, 0.45 / n)
+            Dim span = Math.Max(0.3, 1.0 - (n - 1) * stagger)
+
+            ' 起始态：贴近卡片底色（等于"还没显影"）
+            For i = 0 To n - 1
+                ApplyRowTint(i, 0.0)
+            Next
+
+            Anim.Run(300,
+                     Sub(t)
+                         If gen <> _fadeGen Then Return
+                         For i = 0 To n - 1
+                             Dim local = Math.Max(0.0, Math.Min(1.0, (t - i * stagger) / span))
+                             ApplyRowTint(i, Anim.EaseOut(local))
+                         Next
+                     End Sub,
+                     Sub()
+                         If gen <> _fadeGen Then Return
+                         For i = 0 To n - 1
+                             ApplyRowTint(i, 1.0)
+                         Next
+                     End Sub)
+        End Sub
+
+        ''' <summary>把第 i 行的文字颜色按进度 k（0=贴近底色，1=目标色）混合。</summary>
+        Private Sub ApplyRowTint(i As Integer, k As Double)
+            If i < 0 OrElse i >= _parts.Count Then Return
+            Dim p = _parts(i)
+            If p.Row Is Nothing OrElse p.Row.IsDisposed Then Return
+            Try
+                If p.Lbl IsNot Nothing AndAlso Not p.Lbl.IsDisposed Then
+                    p.Lbl.ForeColor = Anim.Blend(Theme.Card, p.TextColor, k)
+                End If
+                If p.Help IsNot Nothing AndAlso Not p.Help.IsDisposed Then
+                    p.Help.ForeColor = Anim.Blend(Theme.Card, p.HelpColor, k)
+                End If
+                If p.Editor IsNot Nothing AndAlso Not p.Editor.IsDisposed AndAlso p.EditorColor <> Color.Empty Then
+                    p.Editor.ForeColor = Anim.Blend(Theme.Card, p.EditorColor, k)
+                End If
+            Catch
+                ' 控件在动画中途被重建：直接放弃这一行
+            End Try
+        End Sub
+
+        ''' <summary>保存成功后按钮短暂变绿写"已保存"，再渐回主色——比只改底部一行状态更容易被注意到。</summary>
+        Private Sub FlashSaved()
+            If _saveBtn Is Nothing OrElse _saveBtn.IsDisposed Then Return
+            Dim label = _saveBtn.Text
+            _saveBtn.Text = "已保存"
+            Anim.Run(1300,
+                     Sub(t)
+                         If _saveBtn.IsDisposed Then Return
+                         ' 前 25% 保持绿色给眼睛一个落点，之后渐回主色
+                         Dim k = Anim.EaseOut(Math.Max(0.0, (t - 0.25) / 0.75))
+                         _saveBtn.BackColor = Anim.Blend(Theme.Ok, Theme.Accent, k)
+                     End Sub,
+                     Sub()
+                         If _saveBtn.IsDisposed Then Return
+                         _saveBtn.BackColor = Theme.Accent
+                         _saveBtn.Text = label
+                     End Sub)
         End Sub
 
         ''' <summary>按当前可用宽度重排所有参数行：说明文字多换一行，行就跟着长高。</summary>
@@ -527,19 +708,20 @@ Namespace App.Pages
                         changed += 1
                     End If
                 Catch ex As Exception
-                    _status.ForeColor = Theme.Danger
                     _status.Text = "保存「" & f.Entry.Label & "」失败：" & ex.Message
+                    Anim.FadeText(_status, Theme.Danger, 220)
                     Return
                 End Try
             Next
 
             Try
                 _owner.Settings.Save()
-                _status.ForeColor = Theme.Ok
                 _status.Text = $"已保存（{changed} 项有改动）：{AppSettings.DefaultPath()}"
+                Anim.FadeText(_status, Theme.Ok, 260)
+                FlashSaved()
             Catch ex As Exception
-                _status.ForeColor = Theme.Danger
                 _status.Text = "保存失败：" & ex.Message
+                Anim.FadeText(_status, Theme.Danger, 260)
             End Try
         End Sub
 

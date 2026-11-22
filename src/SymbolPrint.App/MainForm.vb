@@ -500,6 +500,95 @@ Namespace App
             End Try
         End Function
 
+        ''' <summary>
+        ''' --animtest [输出txt]：验证高级设置页的淡入动画真的在跑。
+        ''' 做法：切到设置页触发一次 Rebuild（含淡入），在 0 / 120 / 400ms 三个时刻
+        ''' 采样参数区所有 Label 的平均亮度。亮度递减（越来越深）＝文字在浮现；
+        ''' 三点都一样就是动画没生效——这种情况以前出现过（补间被静默作废）。
+        ''' </summary>
+        Private Sub RunAnimTest()
+            Dim outPath = ArgValue("--animtest")
+            If outPath = "" Then outPath = IO.Path.Combine(IO.Path.GetTempPath(), "anim.txt")
+            Dim sb As New Text.StringBuilder()
+            Try
+                StartPosition = FormStartPosition.Manual
+                Bounds = New Rectangle(0, 0, 1480, 900)
+                ShowPage("stamp")
+                Application.DoEvents()
+                PumpMs(300)
+
+                ShowPage("settings")          ' 这里会触发 Rebuild → FadeInRows
+                Dim l0 = SampleLabelLum()
+                PumpMs(120)
+                Dim l1 = SampleLabelLum()
+                PumpMs(320)
+                Dim l2 = SampleLabelLum()
+
+                sb.AppendLine($"设置页参数区文字平均亮度： 0ms={l0:F1}  120ms={l1:F1}  400ms={l2:F1}")
+                sb.AppendLine($"淡入生效={l1 < l0 AndAlso l2 <= l1 + 1}（应看到亮度递减后稳定）")
+
+                ' 保存按钮反馈：点一下，看按钮底色是否短暂变绿
+                Dim btn As Button = Nothing
+                For Each b As Button In FindButtons(_settingsPage)
+                    If b.Text = "保存设置" Then btn = b : Exit For
+                Next
+                If btn IsNot Nothing Then
+                    Dim before = btn.BackColor
+                    btn.PerformClick()
+                    PumpMs(120)
+                    Dim mid = btn.BackColor
+                    Dim midText = btn.Text
+                    PumpMs(1400)
+                    sb.AppendLine($"保存按钮：常态 {Hex(before.ToArgb())} → 反馈 {Hex(mid.ToArgb())}（文字「{midText}」）→ 复原 {Hex(btn.BackColor.ToArgb())}（文字「{btn.Text}」）")
+                    sb.AppendLine($"反馈生效={before.ToArgb() <> mid.ToArgb()}")
+                End If
+            Catch ex As Exception
+                sb.AppendLine("EX " & ex.ToString())
+            End Try
+            Try
+                IO.File.WriteAllText(outPath, sb.ToString(), System.Text.Encoding.UTF8)
+            Catch
+            End Try
+            Close()
+        End Sub
+
+        ''' <summary>参数区所有可见 Label 的文字颜色平均亮度（0=黑，255=白）。</summary>
+        Private Function SampleLabelLum() As Double
+            Dim sum As Double = 0
+            Dim n As Integer = 0
+            For Each l As Label In FindLabels(_settingsPage)
+                If Not l.Visible OrElse String.IsNullOrWhiteSpace(l.Text) Then Continue For
+                Dim c = l.ForeColor
+                sum += 0.299 * c.R + 0.587 * c.G + 0.114 * c.B
+                n += 1
+            Next
+            Return If(n = 0, -1.0, sum / n)
+        End Function
+
+        Private Iterator Function FindLabels(root As Control) As IEnumerable(Of Label)
+            For Each ch As Control In root.Controls
+                Dim l = TryCast(ch, Label)
+                If l IsNot Nothing Then Yield l
+                If ch.Controls.Count > 0 Then
+                    For Each x In FindLabels(ch)
+                        Yield x
+                    Next
+                End If
+            Next
+        End Function
+
+        Private Iterator Function FindButtons(root As Control) As IEnumerable(Of Button)
+            For Each ch As Control In root.Controls
+                Dim b = TryCast(ch, Button)
+                If b IsNot Nothing Then Yield b
+                If ch.Controls.Count > 0 Then
+                    For Each x In FindButtons(ch)
+                        Yield x
+                    Next
+                End If
+            Next
+        End Function
+
         ''' <summary>泵消息若干毫秒：动画定时器要靠消息循环才会跑。</summary>
         Private Sub PumpMs(ms As Integer)
             Dim sw = Diagnostics.Stopwatch.StartNew()
@@ -523,6 +612,10 @@ Namespace App
         ''' </summary>
         Private Sub RunAuditIfRequested()
             If _startupArgs Is Nothing Then Return
+            If Array.IndexOf(_startupArgs, "--animtest") >= 0 Then
+                RunAnimTest()
+                Return
+            End If
             If Array.IndexOf(_startupArgs, "--hovertest") >= 0 Then
                 RunHoverTest()
                 Return

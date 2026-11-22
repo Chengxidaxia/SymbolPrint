@@ -359,7 +359,7 @@ Namespace App.Pages
             btnBar.Controls.Add(openExisting, 1, 0)
             btnBar.Controls.Add(_result, 2, 0)
 
-            _progress = New ProgressStrip() With {.Dock = DockStyle.Fill, .Margin = New Padding(0)}
+            _progress = New ProgressStrip(owner.Settings.Progress.DelayMs, owner.Settings.Progress.ThrottleMs, owner.Settings.Progress) With {.Dock = DockStyle.Fill, .Margin = New Padding(0)}
 
             ' 状态与进度在上，动作按钮在下：先看"在做什么"，再决定点哪个
             bottom.Controls.Add(_progress, 0, 0)

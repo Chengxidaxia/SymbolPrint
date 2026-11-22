@@ -99,6 +99,12 @@ Namespace Service
     Public NotInheritable Class SealOptions
         ''' <summary>Brotli 质量 0–11（默认 9）。</summary>
         Public Property BrotliQuality As Integer = Comp.DefaultBrotliQuality
+        ''' <summary>压缩算法：None 表示记录不压缩（省 CPU，记录更大）。</summary>
+        Public Property CompressionAlgorithm As Byte = Comp.MethodBrotli
+        ''' <summary>压缩后反而更大时是否退回原文。</summary>
+        Public Property SkipIfLarger As Boolean = True
+        ''' <summary>章字节上限（超过就拒绝盖章，避免把超大记录写进别人的文件）。</summary>
+        Public Property SealBytesMax As Long = 64L * 1024 * 1024
         ''' <summary>章字节指纹（PBKDF2）迭代次数。</summary>
         Public Property Pbkdf2Iterations As Integer = StampFile.DefaultKdfIterations
         ''' <summary>载体写入选项（压缩包重打包口令等）。</summary>
@@ -165,8 +171,17 @@ Namespace Service
         Public Property BlobLength As Integer
         Public Property Checks As New List(Of SealCheck)
 
+        ''' <summary>
+        ''' 严格模式：任何一项校验失败都判「失败」；关闭则降级为「警告」——
+        ''' 用于"只想知道有没有明显问题、不想被某一项小瑕疵卡住"的场景。
+        ''' 降级在 Add 里统一处理，避免每个检查点各写一遍判断。
+        ''' </summary>
+        Public Property StrictMode As Boolean = True
+
         Public Function Add(part As String, state As SealPartState, message As String) As SealCheck
-            Dim c As New SealCheck With {.Part = part, .State = state, .Message = message}
+            Dim eff = state
+            If Not StrictMode AndAlso eff = SealPartState.Failed Then eff = SealPartState.Warning
+            Dim c As New SealCheck With {.Part = part, .State = eff, .Message = message}
             Checks.Add(c)
             Return c
         End Function
@@ -318,6 +333,11 @@ Namespace Service
 
                 ' 3) 章字节指纹（PBKDF2）
                 Dim sealBytes = If(seal.SealRawBytes, Array.Empty(Of Byte)())
+            If sealBytes.Length > options.SealBytesMax Then
+                Throw New InvalidOperationException(
+                    $"章字节 {Comp.HumanSize(sealBytes.Length)} 超过上限 {Comp.HumanSize(options.SealBytesMax)}" &
+                    "（可在「高级设置 → 压缩 → 章字节上限」调整）。")
+            End If
                 Dim pbSalt = Bin.RandomBytes(16)
                 Dim pb = Sha3Kdf.Pbkdf2(sealBytes, pbSalt, options.Pbkdf2Iterations, SealRecord.Pbkdf2Len,
                                         scope.Slice(0.45, 0.65, "派生章字节指纹"))
@@ -373,7 +393,8 @@ Namespace Service
 
                 ' 8) 压缩 + 信封
                 Dim payload = SealedPayload.Build(raw, options.BrotliQuality,
-                                                  scope.Slice(0.65, 0.85, "压缩盖章记录"))
+                                                  scope.Slice(0.65, 0.85, "压缩盖章记录"),
+                                                  "", options.CompressionAlgorithm, options.SkipIfLarger)
                 Dim blob = SealEnvelope.Build(payload, SealRecord.Version)
                 res.BlobLength = blob.Length
 
@@ -433,11 +454,14 @@ Namespace Service
         ''' 结果里会明确标注这一点。
         ''' </summary>
         Public Shared Function Verify(filePath As String, Optional stamp As StampFile = Nothing,
-                                      Optional sink As IProgressSink = Nothing) As SealVerifyResult
+                                      Optional sink As IProgressSink = Nothing,
+                                      Optional options As VerifyOptions = Nothing) As SealVerifyResult
             If String.IsNullOrEmpty(filePath) Then Throw New ArgumentNullException(NameOf(filePath))
             If Not File.Exists(filePath) Then Throw New FileNotFoundException("要验证的文件不存在。", filePath)
+            If options Is Nothing Then options = New VerifyOptions()
 
             Dim res As New SealVerifyResult()
+            res.StrictMode = options.StrictMode
             res.StampProvided = stamp IsNot Nothing
             If stamp IsNot Nothing Then
                 res.StampLabel = If(stamp.Label, "")
@@ -462,9 +486,11 @@ Namespace Service
                 If blob Is Nothing Then
                     res.HasRecord = False
                     res.Add("盖章记录", SealPartState.Skipped, "该文件的空白区里没有 SymbolPrint 盖章记录。")
-                    res.Add("局限性说明", SealPartState.Warning,
-                            "没有盖章记录时，无法证明这个文件的来源，也无法证明它没有被改动过（任何人都可以换成任意内容）。" &
-                            "如果确实应该带章，请确认文件是否被其它工具重新保存过（有些工具会丢掉文件尾部/注释区数据）。")
+                    If options.WarnIfNoSeal Then
+                        res.Add("局限性说明", SealPartState.Warning,
+                                "没有盖章记录时，无法证明这个文件的来源，也无法证明它没有被改动过（任何人都可以换成任意内容）。" &
+                                "如果确实应该带章，请确认文件是否被其它工具重新保存过（有些工具会丢掉文件尾部/注释区数据）。")
+                    End If
                     Return res
                 End If
 
@@ -511,7 +537,9 @@ Namespace Service
                 res.Add("记录解析", SealPartState.Ok, $"记录版本 v{SealRecord.Version}，盖章时间 {rec.StampTime.ToLocalTime():yyyy-MM-dd HH:mm:ss}。")
 
                 ' 4) 记录自身哈希
-                If rec.VerifyOwnHash() Then
+                If Not options.CheckOwnHash Then
+                    res.Add("记录自校验", SealPartState.Skipped, "已按设置跳过（高级设置 → 验证 → 校验记录自身哈希）。")
+                ElseIf rec.VerifyOwnHash() Then
                     res.Add("记录自校验", SealPartState.Ok, "记录头、密钥、密文的 SHA3-512 与内嵌摘要一致。")
                 Else
                     res.Add("记录自校验", SealPartState.Failed, "记录内嵌的 SHA3-512 与实际内容不符，记录已被篡改。")
@@ -556,7 +584,9 @@ Namespace Service
                 Dim mineId = stamp.StampId
                 Dim mine8(7) As Byte
                 Buffer.BlockCopy(mineId, 0, mine8, 0, 8)
-                If Bin.Same(sid8, mine8) Then
+                If Not options.CheckStampId Then
+                    res.Add("章身份匹配", SealPartState.Skipped, "已按设置跳过（高级设置 → 验证 → 校验章身份）。")
+                ElseIf Bin.Same(sid8, mine8) Then
                     res.Add("章身份匹配", SealPartState.Ok, $"记录声明的章指纹与提供的章一致（{res.StampIdShort}）。")
                 Else
                     res.Add("章身份匹配", SealPartState.Failed,
@@ -593,6 +623,11 @@ Namespace Service
                 End If
 
                 ' 9) 原文件哈希
+                If Not options.CheckOriginalHash Then
+                    res.Add("原文件哈希", SealPartState.Skipped, "已按设置跳过（高级设置 → 验证 → 校验原文件摘要）。")
+                    ProgressExt.Push(sink, "验章", 1.0)
+                    Return res
+                End If
                 Dim origNow As Byte()
                 If TypeOf carrier Is IOriginalHashAware Then
                     origNow = DirectCast(carrier, IOriginalHashAware).HashOriginal(

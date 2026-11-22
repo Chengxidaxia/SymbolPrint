@@ -19,8 +19,10 @@ Namespace Model
 
         Public Shared Function Build(recordRaw As Byte(), quality As Integer,
                                      Optional sink As IProgressSink = Nothing,
-                                     Optional stage As String = "") As Byte()
-            Dim p = Comp.Pack(recordRaw, quality, sink, stage)
+                                     Optional stage As String = "",
+                                     Optional algorithm As Byte = Comp.MethodBrotli,
+                                     Optional skipIfLarger As Boolean = True) As Byte()
+            Dim p = Comp.Pack(recordRaw, quality, sink, stage, algorithm, skipIfLarger)
             Dim w As New ByteWriter()
             w.WriteU8(p.Method)
             w.WriteU32(CUInt(recordRaw.Length))
