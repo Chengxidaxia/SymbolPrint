@@ -624,6 +624,122 @@ Namespace App
             Close()
         End Sub
 
+        ''' <summary>
+        ''' --visualbench [输出txt]：量可视化盖章的每帧绘制耗时。
+        ''' 缓存前每帧要把 2400px 的页面图用 HighQualityBicubic 重采样一次，单帧 30ms+（20fps 上下，
+        ''' 鼠标明显滞后）。现在背景和章图案都预渲染，目标是 <=8ms。
+        ''' </summary>
+        Private Sub RunVisualBench()
+            Dim outPath = ArgValue("--visualbench")
+            If outPath = "" Then outPath = IO.Path.Combine(IO.Path.GetTempPath(), "visualbench.txt")
+            Dim sb As New Text.StringBuilder()
+            Try
+                Using pageImg = MakeBenchPage(2400, 3200)
+                    Using markImg = MakeBenchMark(600)
+                        Using f As New VisualSealForm(pageImg, 3200.0 / 2400.0, "bench.png · 2400×3200 px",
+                                                      markImg, 0.22, 0.9, 0.0, 0.7, 0.75)
+                            Dim ms = f.BenchFrames(60)
+                            Dim legacy = f.BenchLegacyFrames(20)
+                            sb.AppendLine($"画布 {f.ClientSize.Width}×{f.ClientSize.Height}，页面 2400×3200，章 600px")
+                            sb.AppendLine($"优化后：平均每帧 {ms:F2} ms  → 约 {Math.Round(1000.0 / ms):F0} fps")
+                            sb.AppendLine($"优化前：平均每帧 {legacy:F2} ms  → 约 {Math.Round(1000.0 / legacy):F0} fps（复刻旧绘制路径实测）")
+                            sb.AppendLine($"提速：{legacy / ms:F1} 倍")
+                            Dim verdict = If(ms <= 8.0, "跟手（<=8ms）", If(ms <= 16.0, "勉强（8-16ms）", "仍然卡（>16ms）"))
+                            sb.AppendLine("判定：" & verdict)
+                        End Using
+                    End Using
+                End Using
+            Catch ex As Exception
+                sb.AppendLine("EX " & ex.ToString())
+            End Try
+            Try
+                IO.File.WriteAllText(outPath, sb.ToString(), System.Text.Encoding.UTF8)
+            Catch
+            End Try
+            Close()
+        End Sub
+
+        ''' <summary>
+        ''' --visualshot &lt;png&gt;：把可视化盖章窗口渲染成图片，用于核对背景缓存有没有画错。
+        ''' 用 DrawToBitmap 走真实 OnPaint，窗口只短暂显示 0.4 秒。
+        ''' </summary>
+        Private Sub RunVisualShot(outPath As String)
+            Try
+                Using pageImg = MakeBenchPage(1200, 1600)
+                    Using markImg = MakeBenchMark(600)
+                        Using f As New VisualSealForm(pageImg, 1600.0 / 1200.0, "bench.png · 1200×1600 px",
+                                                      markImg, 0.24, 0.85, 0.0, 0.68, 0.72)
+                            f.WindowState = FormWindowState.Normal
+                            f.ClientSize = New Size(1200, 840)
+                            f.StartPosition = FormStartPosition.Manual
+                            f.Location = New Point(80, 60)
+                            f.Show()
+                            PumpMs(400)
+                            Using bmp As New Bitmap(f.ClientSize.Width, f.ClientSize.Height)
+                                f.DrawToBitmap(bmp, New Rectangle(0, 0, bmp.Width, bmp.Height))
+                                bmp.Save(outPath, Drawing.Imaging.ImageFormat.Png)
+                            End Using
+                            f.Close()
+                        End Using
+                    End Using
+                End Using
+            Catch ex As Exception
+                UiLog.Write("visualshot 失败：" & ex.Message)
+            End Try
+            Close()
+        End Sub
+
+        ''' <summary>造一张模拟扫描件的页面图（白底 + 文字块 + 横线），尺寸与真实件一致。</summary>
+        Private Shared Function MakeBenchPage(w As Integer, h As Integer) As Bitmap
+            Dim bmp As New Bitmap(w, h, Drawing.Imaging.PixelFormat.Format32bppArgb)
+            Using g = Drawing.Graphics.FromImage(bmp)
+                g.Clear(Drawing.Color.White)
+                Using f As New Drawing.Font("Microsoft YaHei UI", w * 0.028F, Drawing.FontStyle.Bold)
+                    Using b As New Drawing.SolidBrush(Drawing.Color.FromArgb(30, 34, 42))
+                        g.DrawString("测试扫描件 · 可视化盖章性能基准", f, b, w * 0.08F, h * 0.08F)
+                    End Using
+                End Using
+                Using f As New Drawing.Font("Microsoft YaHei UI", w * 0.016F)
+                    Using b As New Drawing.SolidBrush(Drawing.Color.FromArgb(70, 76, 88))
+                        For i = 0 To 22
+                            Dim y = h * (0.16 + i * 0.032)
+                            g.DrawString("这一行用来模拟正文内容，测量重绘开销。", f, b, w * 0.08F, CSng(y))
+                        Next
+                    End Using
+                End Using
+                Using p As New Drawing.Pen(Drawing.Color.FromArgb(200, 205, 214), Math.Max(1, w * 0.001F))
+                    For i = 0 To 26
+                        Dim y = CSng(h * (0.19 + i * 0.027))
+                        g.DrawLine(p, CSng(w * 0.08), y, CSng(w * 0.92), y)
+                    Next
+                End Using
+            End Using
+            Return bmp
+        End Function
+
+        ''' <summary>造一枚 600px 的章图案（透明底 + 红环 + 文字）。</summary>
+        Private Shared Function MakeBenchMark(px As Integer) As Bitmap
+            Dim bmp As New Bitmap(px, px, Drawing.Imaging.PixelFormat.Format32bppArgb)
+            Using g = Drawing.Graphics.FromImage(bmp)
+                g.SmoothingMode = Drawing.Drawing2D.SmoothingMode.AntiAlias
+                g.Clear(Drawing.Color.Transparent)
+                Dim red = Drawing.Color.FromArgb(200, 46, 40)
+                Using p As New Drawing.Pen(red, px * 0.035F)
+                    g.DrawEllipse(p, px * 0.08F, px * 0.08F, px * 0.84F, px * 0.84F)
+                End Using
+                Using p As New Drawing.Pen(red, px * 0.012F)
+                    g.DrawEllipse(p, px * 0.16F, px * 0.16F, px * 0.68F, px * 0.68F)
+                End Using
+                Using f As New Drawing.Font("Microsoft YaHei UI", px * 0.15F, Drawing.FontStyle.Bold)
+                    Using b As New Drawing.SolidBrush(red)
+                        Dim sf As New Drawing.StringFormat() With {.Alignment = Drawing.StringAlignment.Center}
+                        g.DrawString("已验讫", f, b, New Drawing.RectangleF(0, px * 0.36F, px, px * 0.3F), sf)
+                    End Using
+                End Using
+            End Using
+            Return bmp
+        End Function
+
         ''' <summary>参数区所有可见 Label 的文字颜色平均亮度（0=黑，255=白）。</summary>
         Private Function SampleLabelLum() As Double
             Dim sum As Double = 0
@@ -731,6 +847,17 @@ Namespace App
             End If
             If Array.IndexOf(_startupArgs, "--animtest") >= 0 Then
                 RunAnimTest()
+                Return
+            End If
+            If Array.IndexOf(_startupArgs, "--visualbench") >= 0 Then
+                RunVisualBench()
+                Return
+            End If
+            Dim vsIdx = Array.FindIndex(_startupArgs, Function(a) String.Equals(a, "--visualshot", StringComparison.OrdinalIgnoreCase))
+            If vsIdx >= 0 Then
+                Dim outFile = If(vsIdx + 1 < _startupArgs.Length, _startupArgs(vsIdx + 1),
+                                 IO.Path.Combine(IO.Path.GetTempPath(), "visualshot.png"))
+                RunVisualShot(outFile)
                 Return
             End If
             If Array.IndexOf(_startupArgs, "--hovertest") >= 0 Then
