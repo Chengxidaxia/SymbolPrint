@@ -324,8 +324,9 @@ Namespace Model
         <Setting("默认展开高级选项", "界面", advanced:=True)>
         Public Property ShowAdvancedByDefault As Boolean = False
 
-        <Setting("记住窗口位置", "界面", advanced:=True)>
-        Public Property RememberWindowBounds As Boolean = True
+        <Setting("记住窗口位置", "界面",
+                 help:="关闭时每次启动都按默认尺寸（1920×1080）打开；开启则用上次关闭时的位置和大小。")>
+        Public Property RememberWindowBounds As Boolean = False
 
         <Setting("启动时打开上次文件", "界面", advanced:=True)>
         Public Property ReopenLastFile As Boolean = False
