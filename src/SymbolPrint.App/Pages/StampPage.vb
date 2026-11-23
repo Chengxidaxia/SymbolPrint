@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Collections.Generic
 Imports System.Drawing
 Imports System.Drawing.Drawing2D
@@ -839,17 +839,17 @@ Namespace App.Pages
             Next
             idx.Sort()
             If idx.Count = 0 Then
-                MessageBox.Show("请先在左边列表里选中要删除章的文件（可按住 Ctrl 多选）。", "SymbolPrint",
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("请先在左边列表里选中要删除章的文件（可按住 Ctrl 多选）。"), "SymbolPrint",
                                 MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
             End If
 
             Dim names = idx.Where(Function(i) i >= 0 AndAlso i < _files.Count).
                             Select(Function(i) IO.Path.GetFileName(_files(i))).ToArray()
-            Dim ask = $"将从 {idx.Count} 个文件上删除已盖的章：" & Environment.NewLine &
-                      String.Join("、", names.Take(3)) & If(names.Length > 3, " 等", "") & Environment.NewLine & Environment.NewLine &
-                      "只摘除本程序写入的记录，文件其它内容不变；章删除后需要重新盖章才能恢复。是否继续？"
-            If MessageBox.Show(ask, "删除章", MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
+            Dim ask = SymbolPrint.Core.Localization.L.F("将从 {0} 个文件上删除已盖的章：", idx.Count) & Environment.NewLine &
+                      String.Join("、", names.Take(3)) & SymbolPrint.Core.Localization.L.T(If(names.Length > 3, " 等", "")) & Environment.NewLine & Environment.NewLine &
+                      SymbolPrint.Core.Localization.L.T("只摘除本程序写入的记录，文件其它内容不变；章删除后需要重新盖章才能恢复。是否继续？")
+            If MessageBox.Show(ask, SymbolPrint.Core.Localization.L.T("删除章"), MessageBoxButtons.YesNo, MessageBoxIcon.Warning,
                                MessageBoxDefaultButton.Button2) <> DialogResult.Yes Then Return
 
             Dim okN = 0, noneN = 0, failN = 0
@@ -1169,15 +1169,15 @@ Namespace App.Pages
         ''' <summary>打开全屏可视化盖章：章跟鼠标走，右键确认后回填坐标。</summary>
         Friend Sub OpenVisualSeal()
             If Not HasMarkSource() Then
-                MessageBox.Show("当前章不含图案，无法可视化盖章。" & Environment.NewLine & Environment.NewLine &
-                                "请点「选择…」指定一个 .svg / .png 图案，或改用自带图案的章。",
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("当前章不含图案，无法可视化盖章。") & Environment.NewLine & Environment.NewLine &
+                                SymbolPrint.Core.Localization.L.T("请点「选择…」指定一个 .svg / .png 图案，或改用自带图案的章。"),
                                 "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
             End If
 
             Dim f = SelectedFile()
             If f = "" Then
-                MessageBox.Show("请先添加要盖章的文件（左侧列表）。", "SymbolPrint",
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("请先添加要盖章的文件（左侧列表）。"), "SymbolPrint",
                                 MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
             End If
@@ -1192,7 +1192,7 @@ Namespace App.Pages
                 LoadVisualPage(f, pageImg, aspect, cap)
                 markImg = RenderMarkImage()
                 If markImg Is Nothing Then
-                    MessageBox.Show("图案渲染失败，无法可视化盖章。", "SymbolPrint",
+                    MessageBox.Show(SymbolPrint.Core.Localization.L.T("图案渲染失败，无法可视化盖章。"), "SymbolPrint",
                                     MessageBoxButtons.OK, MessageBoxIcon.Warning)
                     Return
                 End If
@@ -1274,16 +1274,16 @@ Namespace App.Pages
         Private Async Sub StartStamp()
             If _busy Then Return
             If _files.Count = 0 Then
-                MessageBox.Show("请先添加要盖章的文件。", "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("请先添加要盖章的文件。"), "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
             End If
             If _seal Is Nothing Then
-                MessageBox.Show("请先选择并载入章文件（右侧「印章文件」卡片）。", "SymbolPrint",
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("请先选择并载入章文件（右侧「印章文件」卡片）。"), "SymbolPrint",
                                 MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
             End If
             If _seal.IsLocked Then
-                MessageBox.Show("章的私钥受口令保护，请输入口令后点「载入」。", "SymbolPrint",
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("章的私钥受口令保护，请输入口令后点「载入」。"), "SymbolPrint",
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 Return
             End If
@@ -1325,10 +1325,10 @@ Namespace App.Pages
                 Dim already = targets.Where(Function(t) HasExistingRecord(t)).ToArray()
                 If already.Length > 0 Then
                     Dim names = already.Select(Function(t) IO.Path.GetFileName(t)).Take(3).ToArray()
-                    Dim ask = $"有 {already.Length} 个文件已经带盖章记录：" & Environment.NewLine &
-                              String.Join("、", names) & If(already.Length > 3, " 等", "") & Environment.NewLine & Environment.NewLine &
-                              "继续盖章会在文件里再追加一条记录（旧记录保留）。是否继续？"
-                    If MessageBox.Show(ask, "确认重复盖章", MessageBoxButtons.YesNo, MessageBoxIcon.Question,
+                    Dim ask = SymbolPrint.Core.Localization.L.F("有 {0} 个文件已经带盖章记录：", already.Length) & Environment.NewLine &
+                              String.Join("、", names) & SymbolPrint.Core.Localization.L.T(If(already.Length > 3, " 等", "")) & Environment.NewLine & Environment.NewLine &
+                              SymbolPrint.Core.Localization.L.T("继续盖章会在文件里再追加一条记录（旧记录保留）。是否继续？")
+                    If MessageBox.Show(ask, SymbolPrint.Core.Localization.L.T("确认重复盖章"), MessageBoxButtons.YesNo, MessageBoxIcon.Question,
                                        MessageBoxDefaultButton.Button2) <> DialogResult.Yes Then
                         AppendLog("已取消：用户放弃对已盖章文件的重复盖章。")
                         Return
@@ -1423,13 +1423,13 @@ Namespace App.Pages
                     m.SvgMarkup = _seal.SvgMarkup
                     Return m
                 End If
-                MessageBox.Show("没有可用的图案：请选择 .svg/.png，或使用含图案的章。", "SymbolPrint",
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("没有可用的图案：请选择 .svg/.png，或使用含图案的章。"), "SymbolPrint",
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 Return Nothing
             End If
 
             If Not File.Exists(src) Then
-                MessageBox.Show("图案文件不存在：" & src, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("图案文件不存在：") & src, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 Return Nothing
             End If
 
@@ -1439,7 +1439,7 @@ Namespace App.Pages
             ElseIf ext = ".png" Then
                 m.PngBytes = File.ReadAllBytes(src)
             Else
-                MessageBox.Show("目前只支持 .svg 和 .png 作为图案。", "SymbolPrint",
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("目前只支持 .svg 和 .png 作为图案。"), "SymbolPrint",
                                 MessageBoxButtons.OK, MessageBoxIcon.Warning)
                 Return Nothing
             End If

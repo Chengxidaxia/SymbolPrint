@@ -95,12 +95,17 @@ Namespace Model
         Dark = 2
     End Enum
 
-    ''' <summary>界面语言。System 跟随 Windows 显示语言。</summary>
-    Public Enum AppLanguage As Byte
-        System = 0
-        Chinese = 1
-        English = 2
-    End Enum
+    ''' <summary>界面语言标识（与语言包文件名一致；Auto 表示跟随 Windows）。</summary>
+    Public Module LanguageIds
+        ''' <summary>跟随 Windows。常量名不能叫 System，否则会遮蔽 System 命名空间，
+        ''' 让同文件里的 System.Text.Encoding 解析成字符串成员访问。</summary>
+        Public Const Auto As String = "System"
+        Public Const ZhCN As String = "zh_CN"
+        Public Const ZhTW As String = "zh_TW"
+        Public Const ZhAL As String = "zh_AL"
+        Public Const EnUS As String = "en_US"
+        Public ReadOnly Choices As String() = {Auto, ZhCN, ZhTW, ZhAL, EnUS}
+    End Module
 
     Public Enum RasterEngine As Byte
         ''' <summary>WebView2 渲染 SVG → PNG（保真度最高，与编辑器所见一致）。</summary>
@@ -116,9 +121,9 @@ Namespace Model
                  help:="重启后生效。System 跟随 Windows 的应用主题设置。")>
         Public Property Theme As AppTheme = AppTheme.System
 
-        <Setting("语言 / Language", "通用", choices:={"System", "Chinese", "English"},
-                 help:="重启后生效。System 跟随 Windows 的显示语言。")>
-        Public Property Language As AppLanguage = AppLanguage.System
+        <Setting("语言 / Language", "通用", choices:={"System", "zh_CN", "zh_TW", "zh_AL", "en_US"},
+                 help:="重启后生效。System 跟随 Windows 的显示语言。zh_AL 为文言风格。")>
+        Public Property Language As String = LanguageIds.Auto
 
         <Setting("自动备份原文件", "通用", advanced:=True, help:="盖章前把原文件复制一份 .bak，失败时可回滚。")>
         Public Property AutoBackupOriginal As Boolean = True

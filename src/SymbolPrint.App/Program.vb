@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Windows.Forms
 Imports SymbolPrint.Core.Util
 
@@ -46,7 +46,8 @@ Namespace App
                 ' --lang 只覆盖本次运行，不写回配置（方便中英文界面并排截图比对）
                 For i = 0 To args.Length - 1
                     If String.Equals(args(i), "--lang", StringComparison.OrdinalIgnoreCase) AndAlso i + 1 < args.Length Then
-                        lang = If(String.Equals(args(i + 1), "en", StringComparison.OrdinalIgnoreCase), "en-US", "zh-CN")
+                        ' 接受 zh_CN / zh_TW / zh_AL / en / en_US 等写法，统一走 L.Normalize
+                        lang = SymbolPrint.Core.Localization.L.Normalize(args(i + 1))
                     End If
                 Next
                 SymbolPrint.Core.Localization.L.Load(lang)
@@ -59,9 +60,9 @@ Namespace App
             ' 未处理异常统一兜底，避免用户看到 .NET 的原始崩溃对话框
             AddHandler Application.ThreadException, Sub(sender, e)
                                                          UiLog.WriteCrash(e.Exception)
-                                                         MessageBox.Show("程序遇到未处理的错误：" & Environment.NewLine & Environment.NewLine &
+                                                         MessageBox.Show(SymbolPrint.Core.Localization.L.T("程序遇到未处理的错误：") & Environment.NewLine & Environment.NewLine &
                                                                          e.Exception.Message & Environment.NewLine & Environment.NewLine &
-                                                                         "详细信息已写入日志：" & UiLog.LogPath,
+                                                                         SymbolPrint.Core.Localization.L.T("详细信息已写入日志：") & UiLog.LogPath,
                                                                          "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Error)
                                                      End Sub
             AddHandler AppDomain.CurrentDomain.UnhandledException, Sub(sender, e)
@@ -83,10 +84,10 @@ Namespace App
                 Dim build = Environment.OSVersion.Version.Build
                 If build >= 19045 Then Return True
                 Dim r = MessageBox.Show(
-                    "本程序面向 Windows 10 22H2（build 19045）及以上，当前系统 build " & build & "。" &
+                    SymbolPrint.Core.Localization.L.F("本程序面向 Windows 10 22H2（build 19045）及以上，当前系统 build {0}。", build) &
                     Environment.NewLine & Environment.NewLine &
-                    "低于该版本时可能出现界面错位、WebView2 组件缺失等问题，这些不在支持范围内。" &
-                    Environment.NewLine & Environment.NewLine & "仍要继续启动吗？",
+                    SymbolPrint.Core.Localization.L.T("低于该版本时可能出现界面错位、WebView2 组件缺失等问题，这些不在支持范围内。") &
+                    Environment.NewLine & Environment.NewLine & SymbolPrint.Core.Localization.L.T("仍要继续启动吗？"),
                     "SymbolPrint", MessageBoxButtons.YesNo, MessageBoxIcon.Warning, MessageBoxDefaultButton.Button2)
                 Return r = DialogResult.Yes
             Catch
@@ -96,28 +97,33 @@ Namespace App
 
         ''' <summary>
         ''' 按设置解析目标语言；System 跟随 Windows 显示语言。
-        ''' 简体/繁体中文都归到中文，避免繁体系统拿到英文界面。
+        ''' 简体/繁体中文都归到中文族，避免繁体系统拿到英文界面。
         ''' </summary>
         Private Function ResolveLanguage() As String
-            Dim mode = SymbolPrint.Core.Model.AppLanguage.System
+            Dim mode = SymbolPrint.Core.Model.LanguageIds.Auto
             Try
                 mode = SymbolPrint.Core.Model.AppSettings.Load().General.Language
             Catch
                 ' 配置读不出来时按系统语言走
             End Try
 
-            Select Case mode
-                Case SymbolPrint.Core.Model.AppLanguage.Chinese
-                    Return SymbolPrint.Core.Localization.L.ZhCN
-                Case SymbolPrint.Core.Model.AppLanguage.English
-                    Return SymbolPrint.Core.Localization.L.EnUS
-                Case Else
-                    Dim ui = System.Globalization.CultureInfo.CurrentUICulture
-                    If String.Equals(ui.TwoLetterISOLanguageName, "zh", StringComparison.OrdinalIgnoreCase) Then
-                        Return SymbolPrint.Core.Localization.L.ZhCN
-                    End If
-                    Return SymbolPrint.Core.Localization.L.EnUS
-            End Select
+            If Not String.IsNullOrWhiteSpace(mode) AndAlso
+               Not String.Equals(mode, SymbolPrint.Core.Model.LanguageIds.Auto, StringComparison.OrdinalIgnoreCase) Then
+                Return SymbolPrint.Core.Localization.L.Normalize(mode)
+            End If
+
+            Dim ui = System.Globalization.CultureInfo.CurrentUICulture
+            Dim two = ui.TwoLetterISOLanguageName.ToLowerInvariant()
+            If two = "zh" Then
+                ' 繁体地区走繁体：台湾 / 香港 / 澳门
+                Dim name = If(ui.Name, "").ToLowerInvariant()
+                If name.Contains("tw") OrElse name.Contains("hk") OrElse name.Contains("mo") OrElse
+                   name.Contains("hant") Then
+                    Return SymbolPrint.Core.Localization.L.ZhTW
+                End If
+                Return SymbolPrint.Core.Localization.L.ZhCN
+            End If
+            Return SymbolPrint.Core.Localization.L.EnUS
         End Function
 
     End Module

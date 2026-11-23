@@ -16,8 +16,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 语言包内嵌：Core 自己加载，不依赖安装目录里多一个文件 -->
-    <EmbeddedResource Include="..\..\assets\i18n\en-US.json" LogicalName="en-US.json" />
+    <!-- 语言包内嵌：Core 自己加载，不依赖安装目录里多几个文件。zh_CN 是原文，不需要文件 -->
+    <EmbeddedResource Include="..\..\assets\i18n\en_US.json" LogicalName="en_US.json" />
+    <EmbeddedResource Include="..\..\assets\i18n\zh_TW.json" LogicalName="zh_TW.json" />
+    <EmbeddedResource Include="..\..\assets\i18n\zh_AL.json" LogicalName="zh_AL.json" />
   </ItemGroup>
 
 </Project>

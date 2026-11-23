@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Collections.Generic
 Imports System.IO
 Imports System.Linq
@@ -627,7 +627,7 @@ Namespace Service
             If carrier Is Nothing Then
                 res.CarrierId = "unknown"
                 res.CarrierName = "（未知）"
-                res.Add("文件类型", SealPartState.Failed,
+                res.Add(Localization.L.T("文件类型"), SealPartState.Failed,
                         $"暂不支持该文件类型（{Path.GetExtension(filePath)}），无法判断它是否有 SymbolPrint 记录。")
                 Return res
             End If
@@ -639,11 +639,11 @@ Namespace Service
                 Dim blob = carrier.ReadBlob(filePath)
                 If blob Is Nothing Then
                     res.HasRecord = False
-                    res.Add("盖章记录", SealPartState.Skipped, "该文件的空白区里没有 SymbolPrint 盖章记录。")
+                    res.Add(Localization.L.T("盖章记录"), SealPartState.Skipped, Localization.L.T("该文件的空白区里没有 SymbolPrint 盖章记录。"))
                     If options.WarnIfNoSeal Then
-                        res.Add("局限性说明", SealPartState.Warning,
-                                "没有盖章记录时，无法证明这个文件的来源，也无法证明它没有被改动过（任何人都可以换成任意内容）。" &
-                                "如果确实应该带章，请确认文件是否被其它工具重新保存过（有些工具会丢掉文件尾部/注释区数据）。")
+                        res.Add(Localization.L.T("局限性说明"), SealPartState.Warning,
+                                Localization.L.T("没有盖章记录时，无法证明这个文件的来源，也无法证明它没有被改动过（任何人都可以换成任意内容）。" &
+                                "如果确实应该带章，请确认文件是否被其它工具重新保存过（有些工具会丢掉文件尾部/注释区数据）。"))
                     End If
                     Return res
                 End If
@@ -654,15 +654,15 @@ Namespace Service
                 ' 1) 信封结构
                 Dim footer = SealEnvelope.TryParseFooter(blob, blob.Length - SealEnvelope.FooterSize)
                 If footer Is Nothing Then
-                    res.Add("信封结构", SealPartState.Failed, "文件尾部数据不符合 SymbolPrint 信封格式（尾部标记损坏或记录被截断）。")
+                    res.Add(Localization.L.T("信封结构"), SealPartState.Failed, Localization.L.T("文件尾部数据不符合 SymbolPrint 信封格式（尾部标记损坏或记录被截断）。"))
                     Return res
                 End If
                 res.RecordVersion = footer.SealVersion
                 If footer.TotalLength <> blob.Length Then
-                    res.Add("信封结构", SealPartState.Warning,
-                            $"信封声明的总长（{footer.TotalLength}）与实读长度（{blob.Length}）不一致，文件可能被追加过其它数据。")
+                    res.Add(Localization.L.T("信封结构"), SealPartState.Warning,
+                            Localization.L.F("信封声明的总长（{0}）与实读长度（{1}）不一致，文件可能被追加过其它数据。", footer.TotalLength, blob.Length))
                 Else
-                    res.Add("信封结构", SealPartState.Ok, $"{blob.Length} 字节，尾部标记与长度字段自洽。")
+                    res.Add(Localization.L.T("信封结构"), SealPartState.Ok, Localization.L.F("{0} 字节，尾部标记与长度字段自洽。", blob.Length))
                 End If
 
                 ' 2) 载荷哈希
@@ -670,9 +670,9 @@ Namespace Service
                 Dim payload(payloadLen - 1) As Byte
                 Buffer.BlockCopy(blob, 0, payload, 0, payloadLen)
                 If SealEnvelope.VerifyPayloadHash(payload, footer.PayloadHash8) Then
-                    res.Add("载荷完整性", SealPartState.Ok, "SHA3-512 前 8 字节与 footer 记录一致。")
+                    res.Add(Localization.L.T("载荷完整性"), SealPartState.Ok, Localization.L.T("SHA3-512 前 8 字节与 footer 记录一致。"))
                 Else
-                    res.Add("载荷完整性", SealPartState.Failed, "载荷 SHA3-512 与 footer 记录不一致，记录内容已被改动。")
+                    res.Add(Localization.L.T("载荷完整性"), SealPartState.Failed, Localization.L.T("载荷 SHA3-512 与 footer 记录不一致，记录内容已被改动。"))
                 End If
 
                 ' 3) 解压 + 解析记录
@@ -682,21 +682,21 @@ Namespace Service
                     Dim raw = sp.Unpack(scope.Slice(0.05, 0.25, "解压盖章记录"))
                     rec = SealRecord.Parse(raw)
                 Catch ex As Exception
-                    res.Add("记录解析", SealPartState.Failed, "无法解出盖章记录：" & ex.Message)
+                    res.Add(Localization.L.T("记录解析"), SealPartState.Failed, Localization.L.T("无法解出盖章记录：") & ex.Message)
                     Return res
                 End Try
 
                 res.StampTime = rec.StampTime
                 res.VisualBurned = rec.VisualBurned
-                res.Add("记录解析", SealPartState.Ok, $"记录版本 v{SealRecord.Version}，盖章时间 {rec.StampTime.ToLocalTime():yyyy-MM-dd HH:mm:ss}。")
+                res.Add(Localization.L.T("记录解析"), SealPartState.Ok, Localization.L.F("记录版本 v{0}，盖章时间 {1}。", SealRecord.Version, rec.StampTime.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")))
 
                 ' 4) 记录自身哈希
                 If Not options.CheckOwnHash Then
-                    res.Add("记录自校验", SealPartState.Skipped, "已按设置跳过（高级设置 → 验证 → 校验记录自身哈希）。")
+                    res.Add(Localization.L.T("记录自校验"), SealPartState.Skipped, Localization.L.T("已按设置跳过（高级设置 → 验证 → 校验记录自身哈希）。"))
                 ElseIf rec.VerifyOwnHash() Then
-                    res.Add("记录自校验", SealPartState.Ok, "记录头、密钥、密文的 SHA3-512 与内嵌摘要一致。")
+                    res.Add(Localization.L.T("记录自校验"), SealPartState.Ok, Localization.L.T("记录头、密钥、密文的 SHA3-512 与内嵌摘要一致。"))
                 Else
-                    res.Add("记录自校验", SealPartState.Failed, "记录内嵌的 SHA3-512 与实际内容不符，记录已被篡改。")
+                    res.Add(Localization.L.T("记录自校验"), SealPartState.Failed, Localization.L.T("记录内嵌的 SHA3-512 与实际内容不符，记录已被篡改。"))
                     Return res
                 End If
 
@@ -706,7 +706,7 @@ Namespace Service
                 Try
                     s1Plain = AesGcmUtil.Decrypt(rec.Key1, rec.Nonce1, rec.Section1Cipher, rec.Tag1)
                 Catch ex As Exception
-                    res.Add("加密节1", SealPartState.Failed, "AES-GCM 认证失败，记录密文被改动或损坏：" & ex.Message)
+                    res.Add(Localization.L.T("加密节1"), SealPartState.Failed, Localization.L.T("AES-GCM 认证失败，记录密文被改动或损坏：") & ex.Message)
                     Return res
                 End Try
 
@@ -721,16 +721,16 @@ Namespace Service
                 Dim ephPoint = s1r.ReadBytes(ephLen)
                 Dim sid8 = s1r.ReadBytes(8)
                 res.StampIdShort = Bin.Hex(sid8).ToUpperInvariant()
-                res.Add("加密节1", SealPartState.Ok,
-                        $"已解密（KDF {kdfIter} 次，ECIES 临时公钥 {ephLen} 字节）。")
+                res.Add(Localization.L.T("加密节1"), SealPartState.Ok,
+                        Localization.L.F("已解密（KDF {0} 次，ECIES 临时公钥 {1} 字节）。", kdfIter, ephLen))
 
                 If stamp Is Nothing Then
-                    res.Add("章身份匹配", SealPartState.Skipped, $"记录声明的章指纹为 {res.StampIdShort}，但未提供原章，无法核对。")
-                    res.Add("加密节2", SealPartState.Skipped, "加密节2 由章的公钥加密，必须提供原章（私钥）才能解开。")
-                    res.Add("原文件哈希", SealPartState.Skipped, "无法取出记录里的原文件摘要，因此不能证明原文件未被改动。")
-                    res.Add("局限性说明", SealPartState.Warning,
-                            "无章验证只能证明「这段盖章记录本身没有被改动」，不能证明「文件是由谁盖的章」。" &
-                            "要确认来源，请提供当初生成的那个章文件（.bin）。")
+                    res.Add(Localization.L.T("章身份匹配"), SealPartState.Skipped, Localization.L.F("记录声明的章指纹为 {0}，但未提供原章，无法核对。", res.StampIdShort))
+                    res.Add(Localization.L.T("加密节2"), SealPartState.Skipped, Localization.L.T("加密节2 由章的公钥加密，必须提供原章（私钥）才能解开。"))
+                    res.Add(Localization.L.T("原文件哈希"), SealPartState.Skipped, Localization.L.T("无法取出记录里的原文件摘要，因此不能证明原文件未被改动。"))
+                    res.Add(Localization.L.T("局限性说明"), SealPartState.Warning,
+                            Localization.L.T("无章验证只能证明「这段盖章记录本身没有被改动」，不能证明「文件是由谁盖的章」。" &
+                            "要确认来源，请提供当初生成的那个章文件（.bin）。"))
                     Return res
                 End If
 
@@ -739,12 +739,12 @@ Namespace Service
                 Dim mine8(7) As Byte
                 Buffer.BlockCopy(mineId, 0, mine8, 0, 8)
                 If Not options.CheckStampId Then
-                    res.Add("章身份匹配", SealPartState.Skipped, "已按设置跳过（高级设置 → 验证 → 校验章身份）。")
+                    res.Add(Localization.L.T("章身份匹配"), SealPartState.Skipped, Localization.L.T("已按设置跳过（高级设置 → 验证 → 校验章身份）。"))
                 ElseIf Bin.Same(sid8, mine8) Then
-                    res.Add("章身份匹配", SealPartState.Ok, $"记录声明的章指纹与提供的章一致（{res.StampIdShort}）。")
+                    res.Add(Localization.L.T("章身份匹配"), SealPartState.Ok, Localization.L.F("记录声明的章指纹与提供的章一致（{0}）。", res.StampIdShort))
                 Else
-                    res.Add("章身份匹配", SealPartState.Failed,
-                            $"记录声明的章指纹（{Bin.Hex(sid8).ToUpperInvariant()}）与提供的章（{Bin.Hex(mine8).ToUpperInvariant()}）不同 —— 这个章不是当初盖章用的那个。")
+                    res.Add(Localization.L.T("章身份匹配"), SealPartState.Failed,
+                            Localization.L.F("记录声明的章指纹（{0}）与提供的章（{1}）不同 —— 这个章不是当初盖章用的那个。", Bin.Hex(sid8).ToUpperInvariant(), Bin.Hex(mine8).ToUpperInvariant()))
                 End If
 
                 ' 7) 解密加密节2
@@ -752,7 +752,7 @@ Namespace Service
                 Try
                     s2Plain = Ecies.Decrypt(stamp.GetPrivateKey(), s2Cipher, rec.HkdfInfo, rec.Key1Len)
                 Catch ex As Exception
-                    res.Add("加密节2", SealPartState.Failed, "无法用该章的私钥解开加密节2：" & ex.Message)
+                    res.Add(Localization.L.T("加密节2"), SealPartState.Failed, Localization.L.T("无法用该章的私钥解开加密节2：") & ex.Message)
                     Return res
                 End Try
 
@@ -765,20 +765,20 @@ Namespace Service
                 Dim pbSalt2 = s2r.ReadBytes(Math.Max(1, rec.SaltLen))
                 res.SealBytesLength = sealLen
                 res.OriginalHashHex = Bin.Hex(origHash).ToUpperInvariant()
-                res.Add("加密节2", SealPartState.Ok, $"已用章私钥解密，取出章字节 {sealLen} 字节。")
+                res.Add(Localization.L.T("加密节2"), SealPartState.Ok, Localization.L.F("已用章私钥解密，取出章字节 {0} 字节。", sealLen))
 
                 ' 8) 章字节指纹
                 Dim pbRecalc = Sha3Kdf.Pbkdf2(sealBytes, pbSalt2, kdfIter, Math.Max(1, rec.Pbkdf2LenUsed),
                                               scope.Slice(0.35, 0.55, "重算章字节指纹"))
                 If Bin.Same(pb1, pb2) AndAlso Bin.Same(pb2, pbRecalc) Then
-                    res.Add("章字节指纹", SealPartState.Ok, "两处 PBKDF2 记录一致，且与章字节重算结果相同。")
+                    res.Add(Localization.L.T("章字节指纹"), SealPartState.Ok, Localization.L.T("两处 PBKDF2 记录一致，且与章字节重算结果相同。"))
                 Else
-                    res.Add("章字节指纹", SealPartState.Failed, "章字节的 PBKDF2 指纹对不上：加密节1、加密节2 与章字节三者不一致。")
+                    res.Add(Localization.L.T("章字节指纹"), SealPartState.Failed, Localization.L.T("章字节的 PBKDF2 指纹对不上：加密节1、加密节2 与章字节三者不一致。"))
                 End If
 
                 ' 9) 原文件哈希
                 If Not options.CheckOriginalHash Then
-                    res.Add("原文件哈希", SealPartState.Skipped, "已按设置跳过（高级设置 → 验证 → 校验原文件摘要）。")
+                    res.Add(Localization.L.T("原文件哈希"), SealPartState.Skipped, Localization.L.T("已按设置跳过（高级设置 → 验证 → 校验原文件摘要）。"))
                     ProgressExt.Push(sink, "验章", 1.0)
                     Return res
                 End If
@@ -794,18 +794,19 @@ Namespace Service
                 End If
 
                 If Bin.Same(origHash, origNow) Then
-                    res.Add("原文件哈希", SealPartState.Ok, "还原后的原文件 SHA3-512 与盖章时记录的一致 —— 原文件内容未被改动。")
+                    res.Add(Localization.L.T("原文件哈希"), SealPartState.Ok, Localization.L.T("还原后的原文件 SHA3-512 与盖章时记录的一致 —— 原文件内容未被改动。"))
                 Else
-                    res.Add("原文件哈希", SealPartState.Failed,
-                            "原文件内容与盖章时不一致：盖章时 " & Bin.Hex(origHash).Substring(0, 16).ToUpperInvariant() &
-                            "…，现在 " & Bin.Hex(origNow).Substring(0, 16).ToUpperInvariant() & "…")
+                    res.Add(Localization.L.T("原文件哈希"), SealPartState.Failed,
+                            Localization.L.F("原文件内容与盖章时不一致：盖章时 {0}…，现在 {1}…",
+                            Bin.Hex(origHash).Substring(0, 16).ToUpperInvariant(),
+                            Bin.Hex(origNow).Substring(0, 16).ToUpperInvariant()))
                 End If
 
                 ' 10) 时间戳单调：同一文件多条记录时，后写的记录时间不该比前一条更早
                 If options.CheckTimestampOrder Then
                     Dim times = ReadTailRecordTimes(filePath, 8)
                     If times.Count < 2 Then
-                        res.Add("时间戳顺序", SealPartState.Skipped, "文件里只有一条记录，无需比较顺序。")
+                        res.Add(Localization.L.T("时间戳顺序"), SealPartState.Skipped, Localization.L.T("文件里只有一条记录，无需比较顺序。"))
                     Else
                         Dim back As New List(Of String)()
                         For i = 1 To times.Count - 1
@@ -815,10 +816,10 @@ Namespace Service
                             End If
                         Next
                         If back.Count = 0 Then
-                            res.Add("时间戳顺序", SealPartState.Ok, $"{times.Count} 条记录的盖章时间依次递增，没有倒挂。")
+                            res.Add(Localization.L.T("时间戳顺序"), SealPartState.Ok, Localization.L.F("{0} 条记录的盖章时间依次递增，没有倒挂。", times.Count))
                         Else
-                            res.Add("时间戳顺序", SealPartState.Warning,
-                                    "存在时间倒挂（后写入的记录反而更早），可能被工具回填过时间：" & String.Join("；", back))
+                            res.Add(Localization.L.T("时间戳顺序"), SealPartState.Warning,
+                                    Localization.L.T("存在时间倒挂（后写入的记录反而更早），可能被工具回填过时间：") & String.Join("；", back))
                         End If
                     End If
                 End If

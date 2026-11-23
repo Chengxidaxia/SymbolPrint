@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Drawing
 Imports System.IO
 Imports System.Text
@@ -571,7 +571,7 @@ Namespace App.Pages
                         _svgInfo.ForeColor = Theme.TextSub
                         _svgInfo.Text = $"{Path.GetFileName(d.FileName)}（{Comp.HumanSize(New FileInfo(d.FileName).Length)}）"
                     Catch ex As Exception
-                        MessageBox.Show("读取 SVG 失败：" & ex.Message, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                        MessageBox.Show(SymbolPrint.Core.Localization.L.T("读取 SVG 失败：") & ex.Message, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                     End Try
                 End If
             End Using
@@ -621,7 +621,7 @@ Namespace App.Pages
 
             Dim labelText = _labelBox.Text.Trim()
             If labelText = "" Then
-                MessageBox.Show("请填一个标签，方便以后认出这个章。", "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("请填一个标签，方便以后认出这个章。"), "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
                 _labelBox.Focus()
                 Return
             End If
@@ -630,11 +630,11 @@ Namespace App.Pages
             If _passOn.Checked Then
                 pwd = _pass1.Text
                 If pwd.Length < 4 Then
-                    MessageBox.Show("口令至少 4 个字符（建议更长）。", "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    MessageBox.Show(SymbolPrint.Core.Localization.L.T("口令至少 4 个字符（建议更长）。"), "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
                     Return
                 End If
                 If pwd <> _pass2.Text Then
-                    MessageBox.Show("两次输入的口令不一致。", "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    MessageBox.Show(SymbolPrint.Core.Localization.L.T("两次输入的口令不一致。"), "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                     Return
                 End If
             End If
@@ -646,19 +646,19 @@ Namespace App.Pages
             ElseIf _srcFile.Checked Then
                 Dim f = _sealFileBox.Text.Trim()
                 If f = "" OrElse Not File.Exists(f) Then
-                    MessageBox.Show("请选择作为章字节的文件（或改用文本 / 程序生成）。", "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    MessageBox.Show(SymbolPrint.Core.Localization.L.T("请选择作为章字节的文件（或改用文本 / 程序生成）。"), "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
                     Return
                 End If
                 Try
                     sealBytes = File.ReadAllBytes(f)
                 Catch ex As Exception
-                    MessageBox.Show("读取章字节文件失败：" & ex.Message, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    MessageBox.Show(SymbolPrint.Core.Localization.L.T("读取章字节文件失败：") & ex.Message, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                     Return
                 End Try
             Else
                 If _genBytes Is Nothing OrElse _genBytes.Length = 0 Then GenerateBytes()
                 If _genBytes Is Nothing OrElse _genBytes.Length = 0 Then
-                    MessageBox.Show("程序生成的内容为空，请点「重新生成」。", "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                    MessageBox.Show(SymbolPrint.Core.Localization.L.T("程序生成的内容为空，请点「重新生成」。"), "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
                     Return
                 End If
                 sealBytes = _genBytes

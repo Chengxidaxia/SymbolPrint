@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Drawing
 Imports System.IO
 Imports System.Threading.Tasks
@@ -233,7 +233,7 @@ Namespace App.Pages
             If _busy Then Return
             Dim target = _fileBox.Text.Trim()
             If target = "" OrElse Not File.Exists(target) Then
-                MessageBox.Show("请选择要验证的文件。", "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("请选择要验证的文件。"), "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Information)
                 Return
             End If
 
@@ -241,7 +241,7 @@ Namespace App.Pages
             Dim sealPath = _sealBox.Text.Trim()
             If sealPath <> "" Then
                 If Not File.Exists(sealPath) Then
-                    MessageBox.Show("章文件不存在：" & sealPath, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    MessageBox.Show(SymbolPrint.Core.Localization.L.T("章文件不存在：") & sealPath, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                     Return
                 End If
                 Try
@@ -254,7 +254,7 @@ Namespace App.Pages
                     _sealHint.ForeColor = Theme.TextFaint
                     _sealHint.Text = "不提供章也可以验证：能确认记录未被改动，但无法证明它来自谁。"
                 Catch ex As Exception
-                    MessageBox.Show("章文件无法读取：" & ex.Message, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                    MessageBox.Show(SymbolPrint.Core.Localization.L.T("章文件无法读取：") & ex.Message, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
                     Return
                 End Try
             End If

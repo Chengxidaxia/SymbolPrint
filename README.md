@@ -191,22 +191,29 @@ cs/                      C# 版核心与一致性校验器（不参与主程序�
 
 ## 多语言
 
-界面支持 **简体中文 / English**，在「高级设置 → 通用 → 语言 / Language」里切换，重启生效；
-默认 `System` 跟随 Windows 显示语言（中文系统走中文，其余走英文）。
+界面支持 **四种语言**，在「高级设置 → 通用 → 语言 / Language」里切换，重启生效；
+默认 `System` 跟随 Windows 显示语言（繁体地区自动走繁体）。
 
-实现方式：**以中文原文作为翻译 key**，语言包里查不到就回退中文，所以界面永远不会出现空白或 `btn.save` 这种 key 名。
+| 标识 | 语言 | 说明 |
+|---|---|---|
+| `zh_CN` | 简体中文 | 原文即译文，不加载语言包 |
+| `zh_TW` | 繁體中文 | 臺灣用語（檔案 / 設定 / 預設 / 載入） |
+| `zh_AL` | 文言 | 风格化改写：鈐印、驗印、製印 |
+| `en_US` | English | |
+
+实现方式：**以简体中文原文作为翻译 key**，语言包里查不到就回退简体，所以界面永远不会出现空白或 `btn.save` 这种 key 名。
 
 ```json
 {
   "strings": {
-    "盖章": "Seal",
-    "验章": "Verify"
+    "盖章": "鈐印",
+    "验章": "驗印"
   }
 }
 ```
 
-- 语言包：`assets/i18n/en-US.json`，编译时内嵌进 `SymbolPrint.Core`，不额外落文件
-- 翻译层：`SymbolPrint.Core.Localization.L`（`L.T` / `L.F`），Core 与 App 共用
+- 语言包：`assets/i18n/{zh_TW,zh_AL,en_US}.json`，编译时内嵌进 `SymbolPrint.Core`，不额外落文件
+- 翻译层：`SymbolPrint.Core.Localization.L`（`L.T` / `L.F`），Core 与 App 共用 —— 验章结论这类 Core 产生的消息也能翻
 - 界面应用：`App.UiTranslator.ApplyLanguage(control)` 遍历控件树，只替换**整条精确命中**的文本，
   文件名、用户输入不会被误翻
 
@@ -217,14 +224,15 @@ cs/                      C# 版核心与一致性校验器（不参与主程序�
 | `ListBox` / `ComboBox` 的 `Items` | 条目同时是业务键（分组名匹配元数据、选项文本回写枚举），替换成英文后保存/重建会匹配不到 | 保持中文，只在自绘（`DrawItem`）里取 `L.T` |
 | 动态拼接的 `$"文件：{x}"` | 整条文本含变量，字典匹配不上 | 改写成 `L.F("文件：{0}", x)`，模板整体翻译 |
 
-漏翻的地方不会报错，只是显示中文。用下面这条命令可以导出真实清单（而不是靠 grep 猜）：
+漏翻的地方不会报错，只是显示简体。用下面这条命令可以导出真实清单（而不是靠 grep 猜）：
 
 ```bash
-SymbolPrint.exe --i18nreport out.txt   # 导出界面上全部文案 + 覆盖率 + 未翻译清单
-SymbolPrint.exe --lang en --page settings   # 临时按英文跑、并直达指定页，便于逐页核对
+SymbolPrint.exe --i18nreport out.txt        # 导出界面上全部文案 + 覆盖率 + 未翻译清单
+SymbolPrint.exe --lang zh_TW --page settings   # 临时按指定语言跑并直达页面
+SymbolPrint.exe --lang zh_AL                # 文言界面（趣味向，术语保留现代写法）
 ```
 
-当前覆盖率：主窗体 84 / 84（100%）。验章结论、错误消息等运行时文本仍在中文，按需补进语言包即可。
+覆盖率：主窗体 84 / 84；验章报告、弹窗提示已接入翻译（每包 277 条）。
 
 ## 界面自检（开发用）
 

@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Collections.Generic
 Imports System.Drawing
 Imports System.Linq
@@ -755,7 +755,7 @@ Namespace App.Pages
         End Sub
 
         Private Sub ResetToDefaults()
-            If MessageBox.Show("把所有参数恢复为默认值？当前设置会被覆盖（不会立即写盘，点「保存设置」才生效）。",
+            If MessageBox.Show(SymbolPrint.Core.Localization.L.T("把所有参数恢复为默认值？当前设置会被覆盖（不会立即写盘，点「保存设置」才生效）。"),
                                "SymbolPrint", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) <> DialogResult.OK Then Return
             CopySettings(New AppSettings(), _owner.Settings)
             LoadFields()
@@ -777,7 +777,7 @@ Namespace App.Pages
                 If Not IO.Directory.Exists(dir) Then IO.Directory.CreateDirectory(dir)
                 Process.Start(New ProcessStartInfo(dir) With {.UseShellExecute = True})
             Catch ex As Exception
-                MessageBox.Show("无法打开配置目录：" & ex.Message, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
+                MessageBox.Show(SymbolPrint.Core.Localization.L.T("无法打开配置目录：") & ex.Message, "SymbolPrint", MessageBoxButtons.OK, MessageBoxIcon.Warning)
             End Try
         End Sub
 
