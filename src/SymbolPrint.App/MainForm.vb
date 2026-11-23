@@ -75,7 +75,13 @@ Namespace App
                 If st.BoundsVisible() Then
                     StartPosition = FormStartPosition.Manual
                     Bounds = New Rectangle(st.X, st.Y, st.Width, st.Height)
+                Else
+                    ' 没有可用的历史位置就以最大化开：1920x1080 的屏上正好铺满工作区
+                    WindowState = FormWindowState.Maximized
                 End If
+            Else
+                ' 默认最大化：用户要的是「打开就占满屏」，而不是一个留白的大窗口
+                WindowState = FormWindowState.Maximized
             End If
             BackColor = Theme.Bg
             Font = Theme.FontBase

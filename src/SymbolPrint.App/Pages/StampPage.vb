@@ -48,6 +48,9 @@ Namespace App.Pages
 
         Private _sealCard As Panel
         Private _visCard As Panel
+        ' 预览行高度按可用空间伸缩：内容比窗口高就会出现竖滚动条（右侧那条灰滑条）
+        Private _previewRowH As Integer = 248
+        Private _fittingRight As Boolean = False
         Private _sealTable As TableLayoutPanel
         Private _visTable As TableLayoutPanel
         Private _rightHost As Panel
@@ -183,6 +186,7 @@ Namespace App.Pages
             AddHandler rightHost.Resize, Sub(s, e)
                                              Using New Prof.T("stamp.rightHost.Resize")
                                                  SyncRightPadding()
+                                                 FitRightPanel()
                                              End Using
                                          End Sub
             AddHandler rightHost.Layout, Sub(s, e)
@@ -305,7 +309,7 @@ Namespace App.Pages
             Dim rowTitle = Math.Max(30, Theme.LineH2 + 10)
             Dim rowCheck = Theme.LineH + 10
             Dim rowMark = Theme.InputH + 10
-            Dim rowPreview = 248
+            Dim rowPreview = _previewRowH
             Dim rowHint = Theme.LineH * 4 + 8
 
             Dim visTable As New TableLayoutPanel() With {
@@ -548,6 +552,35 @@ Namespace App.Pages
         End Sub
 
         ''' <summary>竖滚动条出现时补右内边距，避免多出一条横向滚动条。</summary>
+        ''' <summary>
+        ''' 让「可视化盖章」卡片的预览行吸收剩余高度，使两张卡片刚好铺满右栏。
+        ''' 不改的话：内容固定 900 多像素，窗口矮一点就冒出右侧竖滚动条。
+        ''' </summary>
+        Private Sub FitRightPanel()
+            If _fittingRight OrElse _rightHost Is Nothing OrElse _visTable Is Nothing OrElse
+               _visCard Is Nothing OrElse _sealCard Is Nothing Then Return
+            If _rightHost.IsDisposed OrElse _visTable.IsDisposed Then Return
+            If _visTable.RowStyles.Count < 6 Then Return
+            _fittingRight = True
+            Try
+                Dim avail = _rightHost.ClientSize.Height - _rightHost.Padding.Vertical
+                ' 除预览行以外的固定部分
+                Dim fixedH = 0
+                For i = 0 To _visTable.RowStyles.Count - 1
+                    If i <> 3 Then fixedH += CInt(_visTable.RowStyles(i).Height)
+                Next
+                Dim remain = avail - _sealCard.Height - fixedH - CardInner * 2 - 12
+                Dim want = Math.Max(150, Math.Min(420, remain))
+                If Math.Abs(want - _previewRowH) < 3 Then Return
+                _previewRowH = want
+                _visTable.RowStyles(3).Height = want
+                _visTable.Height = fixedH + want
+                _visCard.Height = _visTable.Height + CardInner * 2
+            Finally
+                _fittingRight = False
+            End Try
+        End Sub
+
         Private Sub SyncRightPadding()
             If _rightHost Is Nothing OrElse _rightHost.IsDisposed Then Return
             Dim want = If(_rightHost.VerticalScroll.Visible, SystemInformation.VerticalScrollBarWidth + 2, 2)
@@ -1477,7 +1510,10 @@ Namespace App.Pages
             Dim o = _outer
             If o Is Nothing OrElse o.IsDisposed Then Return
             If o.Height < 420 Then Return
-            Dim want = Math.Max(o.Panel1MinSize, o.Height - Math.Max(o.Panel2MinSize, Theme.LineH * 5 + 96))
+            ' 日志区固定占 22%（而不是按行数算）：右侧两张卡片要完整放下，
+            ' 否则右栏只能靠滚动条，用户看到的就是右边一条灰滑条
+            Dim logH = Math.Max(o.Panel2MinSize, CInt(o.Height * 0.22))
+            Dim want = Math.Max(o.Panel1MinSize, o.Height - logH)
             want = Math.Min(want, o.Height - o.Panel2MinSize - o.SplitterWidth)
             If _outerSplitSet AndAlso Math.Abs(o.SplitterDistance - want) < 2 Then Return
             _outerSplitSet = True
