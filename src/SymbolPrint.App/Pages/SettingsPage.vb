@@ -57,6 +57,7 @@ Namespace App.Pages
         ' 每接一个就加到这里，界面立刻从「预留」变成正常可调。
         Private Shared ReadOnly InEffectKeys As New HashSet(Of String)(StringComparer.Ordinal) From {
             "General.AutoBackupOriginal", "General.BackupSuffix", "General.ValidateBeforeOpen", "General.Theme",
+            "General.Language",
             "Crypto.Pbkdf2Iterations", "Crypto.Curve", "Crypto.ProtectStampKeyByDefault", "Crypto.UnlockKeepMinutes",
             "Crypto.AesKeyBits", "Crypto.GcmTagBytes",
             "Crypto.Pbkdf2SaltBytes", "Crypto.DerivedKeyBytes", "Crypto.HkdfInfo",

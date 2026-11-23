@@ -269,6 +269,7 @@
     "避免遮挡正文。": "Keeps the artwork from covering body text.",
     "重启后生效。System 跟随 Windows 的应用主题设置。": "Takes effect after restart. System follows the Windows app theme setting.",
     "重启后生效。System 跟随 Windows 的显示语言。": "Takes effect after restart. System follows the Windows display language.",
+    "重启后生效。System 跟随 Windows 的显示语言。zh_AL 为文言风格。": "Takes effect after restart. System follows the Windows display language. zh_AL is the classical Chinese style.",
     "重新生成": "Regenerate",
     "重新载入": "Reload",
     "重编码图片时保留原始 EXIF。": "Keeps the original EXIF when re-encoding images.",
