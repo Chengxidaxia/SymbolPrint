@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Drawing
 Imports System.Drawing.Drawing2D
 Imports System.Windows.Forms
@@ -114,14 +114,14 @@ Namespace App.Controls
 
             Using f As New Font("Microsoft YaHei UI", 12.5F, FontStyle.Bold)
                 Using b As New SolidBrush(accent)
-                    g.DrawString(_title, f, b, 68, 12)
+                    g.DrawString(SymbolPrint.Core.Localization.L.T(_title), f, b, 68, 12)
                 End Using
             End Using
 
             Using f As New Font("Microsoft YaHei UI", 9.0F)
                 Using b As New SolidBrush(Theme.TextMain)
                     Dim rect As New RectangleF(68, 40, Width - 84, Height - 44)
-                    g.DrawString(_subtitle, f, b, rect)
+                    g.DrawString(SymbolPrint.Core.Localization.L.T(_subtitle), f, b, rect)
                 End Using
             End Using
         End Sub

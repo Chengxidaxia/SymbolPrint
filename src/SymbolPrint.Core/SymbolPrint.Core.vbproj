@@ -15,4 +15,9 @@
     <PackageReference Include="System.Text.Encoding.CodePages" Version="8.0.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- 语言包内嵌：Core 自己加载，不依赖安装目录里多一个文件 -->
+    <EmbeddedResource Include="..\..\assets\i18n\en-US.json" LogicalName="en-US.json" />
+  </ItemGroup>
+
 </Project>

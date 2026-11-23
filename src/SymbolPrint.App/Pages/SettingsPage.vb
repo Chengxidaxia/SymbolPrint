@@ -191,6 +191,8 @@ Namespace App.Pages
                                                               _currentGroup = CStr(_groups.Items(_groups.SelectedIndex))
                                                           End If
                                                           Rebuild()
+                                                          ' 重建出来的参数行是新控件，补翻一次
+                                                          ApplyLanguage(Me)
                                                       End Sub
             bar.Controls.Add(_showAdvanced)
 
@@ -338,7 +340,8 @@ Namespace App.Pages
                     e.Graphics.FillRectangle(b, e.Bounds.X, e.Bounds.Y + 7, 3, e.Bounds.Height - 14)
                 End Using
             End If
-            Dim text = CStr(_groups.Items(e.Index))
+            ' Items 里存的是中文分组名（Rebuild 靠它匹配设置元数据），只在绘制时翻译
+            Dim text = SymbolPrint.Core.Localization.L.T(CStr(_groups.Items(e.Index)))
             Using f As New Font("Microsoft YaHei UI", 9.5F, If(selected, FontStyle.Bold, FontStyle.Regular))
                 Using b As New SolidBrush(If(selected, Theme.Accent, Theme.TextMain))
                     ' 垂直居中：用字号算基线，不写死 +8（DPI 一变就偏）
@@ -354,6 +357,8 @@ Namespace App.Pages
             If _groups.SelectedIndex < 0 Then Return
             _currentGroup = CStr(_groups.Items(_groups.SelectedIndex))
             Rebuild()
+            ' 参数行是新控件，补翻一次（幂等）
+            ApplyLanguage(Me)
         End Sub
 
         ' ==================== 渲染 ====================

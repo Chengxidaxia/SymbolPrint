@@ -283,7 +283,7 @@ Namespace App.Controls
                     g.DrawRectangle(pen, mr0.X, mr0.Y, mr0.Width, mr0.Height)
                 End Using
                 Using f As New Font("Microsoft YaHei UI", 8.0F)
-                    Dim s = "未启用图案"
+                    Dim s = SymbolPrint.Core.Localization.L.T("未启用图案")
                     Dim sz = g.MeasureString(s, f)
                     Dim tx = mr0.X + (mr0.Width - sz.Width) / 2
                     Dim ty = mr0.Y + (mr0.Height - sz.Height) / 2
@@ -347,8 +347,8 @@ Namespace App.Controls
             ' 角标：底图来源（居中一行，过长就截断，不跟别的文字抢位置）
             Using f As New Font("Microsoft YaHei UI", 7.5F)
                 Using b As New SolidBrush(Theme.TextFaint)
-                    Dim s = If(_caption = "", If(_hasPage, "", "未选择文件（按 A4 比例示意）"), _caption)
-                    If _pageNote <> "" Then s = s & " · " & _pageNote
+                    Dim s = If(_caption = "", If(_hasPage, "", SymbolPrint.Core.Localization.L.T("未选择文件（按 A4 比例示意）")), _caption)
+                    If _pageNote <> "" Then s = s & " · " & SymbolPrint.Core.Localization.L.T(_pageNote)
                     If s <> "" Then
                         While g.MeasureString(s, f).Width > Width - 12 AndAlso s.Length > 6
                             s = s.Substring(0, s.Length - 2)

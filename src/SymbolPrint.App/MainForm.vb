@@ -1,4 +1,4 @@
-Imports System
+﻿Imports System
 Imports System.Collections.Generic
 Imports System.Drawing
 Imports System.Linq
@@ -86,6 +86,8 @@ Namespace App
             BuildPages()
             ' 所有页面建完后统一刷一遍输入控件配色（数字框/路径框/日志框都是直接 New 的）
             Theme.ThemeInputs(Me)
+            ' 界面文案翻译：整棵控件树按语言包精确替换，未收录的条目回退中文
+            ApplyLanguage(Me)
             ShowPage("stamp")
 
             AddHandler Shown, Sub(s, e)
@@ -740,6 +742,69 @@ Namespace App
             Return bmp
         End Function
 
+        ''' <summary>
+        ''' --i18nreport [输出txt]：导出界面上出现的全部文案，用于补齐语言包。
+        ''' 先在中文界面下收集（这样拿到的才是 key），再统计哪些已有英文译文。
+        ''' 自绘控件不挂在 Control.Text 上，单独从导航项取。
+        ''' </summary>
+        Private Sub RunI18nReport(outPath As String)
+            Dim sb As New Text.StringBuilder()
+            Try
+                ' 先载入英文包拿到"已有哪些译文"，再切回中文收集 key
+                ' （中文模式下字典是空的，直接查会全部显示未翻译）
+                SymbolPrint.Core.Localization.L.Load(SymbolPrint.Core.Localization.L.EnUS)
+                Dim snap = SymbolPrint.Core.Localization.L.Snapshot()
+                SymbolPrint.Core.Localization.L.Load(SymbolPrint.Core.Localization.L.ZhCN)
+
+                ApplyLanguage(Me)
+                Application.DoEvents()
+
+                Dim all As New HashSet(Of String)(StringComparer.Ordinal)
+                For Each k In {"stamp", "verify", "make", "settings"}
+                    ShowPage(k)
+                    Application.DoEvents()
+                    CollectTexts(Me, all)
+                Next
+                For Each ni As NavItem In _navItems
+                    If Not String.IsNullOrWhiteSpace(ni.Caption) Then all.Add(ni.Caption)
+                    If Not String.IsNullOrWhiteSpace(ni.CaptionHint) Then all.Add(ni.CaptionHint)
+                Next
+
+                Dim list = all.Where(Function(s) Not String.IsNullOrWhiteSpace(s)).OrderBy(Function(s) s, StringComparer.Ordinal).ToList()
+                Dim cjk As New System.Text.RegularExpressions.Regex("[\u4e00-\u9fff]")
+                Dim zhList = list.Where(Function(s) cjk.IsMatch(s)).ToList()
+                Dim done = zhList.Where(Function(s) snap.ContainsKey(s)).ToList()
+
+                sb.AppendLine($"主窗体文案总数：{list.Count}")
+                sb.AppendLine($"其中含中文（需要翻译）：{zhList.Count}")
+                sb.AppendLine($"语言包条目：{snap.Count}")
+                sb.AppendLine($"已覆盖：{done.Count} / {zhList.Count}" &
+                              If(zhList.Count > 0, $"（{(done.Count * 100.0 / zhList.Count):0.0}%）", ""))
+                sb.AppendLine()
+                sb.AppendLine("== 未翻译（按字面排序）==")
+                For Each s In zhList
+                    If Not snap.ContainsKey(s) Then sb.AppendLine(s.Replace(vbCrLf, " ").Replace(vbLf, " "))
+                Next
+                sb.AppendLine()
+                sb.AppendLine("== 已翻译 ==")
+                For Each s In done
+                    sb.AppendLine(s & "  →  " & snap(s))
+                Next
+                sb.AppendLine()
+                sb.AppendLine("== 语言包里有、但界面上没出现（可能是旧条目）==")
+                For Each kv In snap.OrderBy(Function(x) x.Key, StringComparer.Ordinal)
+                    If Not all.Contains(kv.Key) Then sb.AppendLine(kv.Key)
+                Next
+            Catch ex As Exception
+                sb.AppendLine("EX " & ex.ToString())
+            End Try
+            Try
+                IO.File.WriteAllText(outPath, sb.ToString(), System.Text.Encoding.UTF8)
+            Catch
+            End Try
+            Close()
+        End Sub
+
         ''' <summary>参数区所有可见 Label 的文字颜色平均亮度（0=黑，255=白）。</summary>
         Private Function SampleLabelLum() As Double
             Dim sum As Double = 0
@@ -853,6 +918,13 @@ Namespace App
                 RunVisualBench()
                 Return
             End If
+            Dim i18nIdx = Array.FindIndex(_startupArgs, Function(a) String.Equals(a, "--i18nreport", StringComparison.OrdinalIgnoreCase))
+            If i18nIdx >= 0 Then
+                Dim outFile = If(i18nIdx + 1 < _startupArgs.Length AndAlso Not _startupArgs(i18nIdx + 1).StartsWith("--"),
+                                 _startupArgs(i18nIdx + 1), IO.Path.Combine(IO.Path.GetTempPath(), "i18nreport.txt"))
+                RunI18nReport(outFile)
+                Return
+            End If
             Dim vsIdx = Array.FindIndex(_startupArgs, Function(a) String.Equals(a, "--visualshot", StringComparison.OrdinalIgnoreCase))
             If vsIdx >= 0 Then
                 Dim outFile = If(vsIdx + 1 < _startupArgs.Length, _startupArgs(vsIdx + 1),
@@ -954,6 +1026,12 @@ Namespace App
 
         Private Sub HandleStartupArgs()
             If _startupArgs Is Nothing OrElse _startupArgs.Length = 0 Then Return
+
+            ' --page <stamp|verify|make|settings>：直接打开指定页（核对多语言界面用）
+            Dim pageIdx = Array.FindIndex(_startupArgs, Function(a) String.Equals(a, "--page", StringComparison.OrdinalIgnoreCase))
+            If pageIdx >= 0 AndAlso pageIdx + 1 < _startupArgs.Length Then
+                ShowPage(_startupArgs(pageIdx + 1))
+            End If
 
             ' --stamp <文件/目录>... --seal <章.bin> [--pass <口令>] [--mark <svg|png>]：预填盖章页
             Dim si = Array.FindIndex(_startupArgs, Function(a) String.Equals(a, "--stamp", StringComparison.OrdinalIgnoreCase))
@@ -1145,6 +1223,8 @@ Namespace App
 
             Dim appPage = TryCast(_pages(key), IAppPage)
             If appPage IsNot Nothing Then appPage.OnShown()
+            ' 页面可能是在 OnShown 里才建控件（懒加载），这里补翻一次；幂等，重复调用无副作用
+            ApplyLanguage(_pages(key))
         End Sub
 
         ''' <summary>
@@ -1314,6 +1394,20 @@ Namespace App
 
         Friend ReadOnly Property Key As String
 
+        ''' <summary>原始（中文）主文案，供 --i18nreport 收集。</summary>
+        Friend ReadOnly Property Caption As String
+            Get
+                Return _text
+            End Get
+        End Property
+
+        ''' <summary>原始（中文）副文案。</summary>
+        Friend ReadOnly Property CaptionHint As String
+            Get
+                Return _hint
+            End Get
+        End Property
+
         Friend Sub New(key As String, text As String, hint As String)
             Me.Key = key
             _text = text
@@ -1383,11 +1477,12 @@ Namespace App
 
             Using f As New Font("Microsoft YaHei UI", 10.0F, If(_selected, FontStyle.Bold, FontStyle.Regular))
                 Using b As New SolidBrush(If(_selected, Theme.Accent, Theme.TextMain))
-                    g.DrawString(_text, f, b, 16, 6)
+                    ' 自绘控件拿不到 Control.Text，翻译在绘制处做
+                    g.DrawString(SymbolPrint.Core.Localization.L.T(_text), f, b, 16, 6)
                 End Using
             End Using
             Using b As New SolidBrush(Theme.TextFaint)
-                g.DrawString(_hint, New Font("Microsoft YaHei UI", 7.5F), b, 17, 27)
+                g.DrawString(SymbolPrint.Core.Localization.L.T(_hint), New Font("Microsoft YaHei UI", 7.5F), b, 17, 27)
             End Using
         End Sub
     End Class

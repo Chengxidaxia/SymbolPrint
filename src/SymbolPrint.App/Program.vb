@@ -39,6 +39,21 @@ Namespace App
                 ' 字体缺失时保持系统默认，不阻断启动
             End Try
 
+            ' 「界面 → 语言」：同样必须在建窗体之前载入，否则控件的初始文案会是中文
+            Try
+                SymbolPrint.Core.Localization.L.LogSink = AddressOf UiLog.Write
+                Dim lang = ResolveLanguage()
+                ' --lang 只覆盖本次运行，不写回配置（方便中英文界面并排截图比对）
+                For i = 0 To args.Length - 1
+                    If String.Equals(args(i), "--lang", StringComparison.OrdinalIgnoreCase) AndAlso i + 1 < args.Length Then
+                        lang = If(String.Equals(args(i + 1), "en", StringComparison.OrdinalIgnoreCase), "en-US", "zh-CN")
+                    End If
+                Next
+                SymbolPrint.Core.Localization.L.Load(lang)
+            Catch ex As Exception
+                UiLog.Write("语言载入失败，界面保持中文：" & ex.Message)
+            End Try
+
             If Not EnsureMinOs() Then Return
 
             ' 未处理异常统一兜底，避免用户看到 .NET 的原始崩溃对话框
@@ -77,6 +92,32 @@ Namespace App
             Catch
                 Return True
             End Try
+        End Function
+
+        ''' <summary>
+        ''' 按设置解析目标语言；System 跟随 Windows 显示语言。
+        ''' 简体/繁体中文都归到中文，避免繁体系统拿到英文界面。
+        ''' </summary>
+        Private Function ResolveLanguage() As String
+            Dim mode = SymbolPrint.Core.Model.AppLanguage.System
+            Try
+                mode = SymbolPrint.Core.Model.AppSettings.Load().General.Language
+            Catch
+                ' 配置读不出来时按系统语言走
+            End Try
+
+            Select Case mode
+                Case SymbolPrint.Core.Model.AppLanguage.Chinese
+                    Return SymbolPrint.Core.Localization.L.ZhCN
+                Case SymbolPrint.Core.Model.AppLanguage.English
+                    Return SymbolPrint.Core.Localization.L.EnUS
+                Case Else
+                    Dim ui = System.Globalization.CultureInfo.CurrentUICulture
+                    If String.Equals(ui.TwoLetterISOLanguageName, "zh", StringComparison.OrdinalIgnoreCase) Then
+                        Return SymbolPrint.Core.Localization.L.ZhCN
+                    End If
+                    Return SymbolPrint.Core.Localization.L.EnUS
+            End Select
         End Function
 
     End Module
