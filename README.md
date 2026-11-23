@@ -186,7 +186,7 @@ src/SymbolPrint.Cli/     命令行
 assets/editor/svgedit/    SVG-Edit 7.4.2 发行版（随包复制到 <程序目录>\editor\）
 tests/vectors/           字节级一致性测试向量
 tools/                   开发期小工具
-cs/                      早期 C# 原型（未参与构建，仅作历史留存）
+cs/                      C# 版核心与一致性校验器（不参与主程序构建，见下）
 ```
 
 ## 界面自检（开发用）
@@ -197,7 +197,26 @@ cs/                      早期 C# 原型（未参与构建，仅作历史留存
 SymbolPrint.exe --audit out.txt --size 1480x900
 SymbolPrint.exe --sweep  out.txt        # 按宽度逐档扫描，附带单次重排耗时
 SymbolPrint.exe --hovertest out.txt     # 用真实鼠标验证按钮悬停是否变色
+SymbolPrint.exe --visualbench out.txt   # 可视化盖章每帧耗时（改前/改后对照）
+SymbolPrint.exe --visualshot out.png    # 渲染可视化盖章界面，核对绘制
 ```
+
+## C# 版一致性校验
+
+`cs/` 是独立的 C# 实现，**不参与主程序构建**，作用是把格式和密码学用另一种语言重写一遍，
+与 VB 版逐字节比对 —— 两边只要有一个字节不同，这里立刻红。
+
+```bash
+cd cs
+dotnet build SymbolPrint.Cli/SymbolPrint.Cli.csproj -c Release
+SymbolPrint.Cli/bin/Release/net9.0-windows/spcli-cs.exe conformance
+```
+
+覆盖 10 项：SHA3-512、HMAC-SHA3-512、HKDF、PBKDF2、AES-GCM、ECIES，
+以及**章文件格式（stamp_bin）**和**盖章记录 v1（seal_record）**。当前 10/10 全部通过。
+
+这项检查的价值在于：格式定义不会因为某一边的"顺手改动"而悄悄漂移。
+改了 VB 版任何一种字节布局，都应重新跑一次 conformance。
 
 ## 说明
 

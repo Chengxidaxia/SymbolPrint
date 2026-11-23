@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using SymbolPrint.Core.Crypto;
+using SymbolPrint.Core.Model;
 using SymbolPrint.Core.Util;
 
 namespace SymbolPrint.Cli
@@ -157,6 +158,57 @@ namespace SymbolPrint.Cli
                                             Bin.FromHex(c.Input["ephPriv"]), Bin.FromHex(c.Input["nonce"]));
                     r["envelope"] = Bin.Hex(env);
                     break;
+
+                case "stamp_bin":
+                {
+                    // 构造章文件 → 落盘 → 整文件 SHA3。保留区全 0，与 VB 版新建文件时一致。
+                    var st = new StampFile
+                    {
+                        Keys = new EcKeys
+                        {
+                            PublicSpki = Bin.FromHex(c.Input["pub"]),
+                            PrivatePkcs8 = Bin.FromHex(c.Input["priv"]),
+                            CurveId = (EcCurveId)int.Parse(c.Input["curve"])
+                        },
+                        Label = Bin.Utf8(Bin.FromHex(c.Input["label"])),
+                        Description = Bin.Utf8(Bin.FromHex(c.Input["desc"])),
+                        SvgMarkup = Bin.Utf8(Bin.FromHex(c.Input["svg"])),
+                        SealRawBytes = Bin.FromHex(c.Input["seal"]),
+                        CreatedAt = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(c.Input["createdAtMs"]))
+                    };
+                    var tmp = Path.Combine(Path.GetTempPath(), "sp_vec_" + Guid.NewGuid().ToString("N") + ".bin");
+                    try
+                    {
+                        st.Save(tmp);
+                        r["fileSha3"] = Bin.Hex(Sha3Kdf.Hash512(File.ReadAllBytes(tmp)));
+                        r["size"] = new FileInfo(tmp).Length.ToString();
+                        r["stampId"] = Bin.Hex(st.StampId);
+                    }
+                    finally
+                    {
+                        try { File.Delete(tmp); } catch { /* 临时文件删不掉不影响结果 */ }
+                    }
+                    break;
+                }
+
+                case "seal_record":
+                {
+                    var rec = new SealRecord();
+                    // 用例名带 /v1 的按 v1 布局复现，其余按当前版本写出
+                    if (c.Name != null && c.Name.EndsWith("/v1", StringComparison.Ordinal)) rec.RecordVer = 1;
+                    rec.Key1 = Bin.FromHex(c.Input["key1"]);
+                    rec.Nonce1 = Bin.FromHex(c.Input["nonce1"]);
+                    rec.Tag1 = Bin.FromHex(c.Input["tag1"]);
+                    rec.Section1Cipher = Bin.FromHex(c.Input["section1"]);
+                    rec.StampTime = DateTimeOffset.FromUnixTimeMilliseconds(long.Parse(c.Input["stampTimeMs"]));
+                    rec.VisualBurned = c.Input["visualBurned"] == "1";
+                    rec.SealOwnHash();
+                    var rawRec = rec.Serialize();
+                    r["recordSha3"] = Bin.Hex(Sha3Kdf.Hash512(rawRec));
+                    r["ownHash"] = Bin.Hex(rec.OwnContentSha3);
+                    r["size"] = rawRec.Length.ToString();
+                    break;
+                }
 
                 default:
                     throw new NotSupportedException(c.Kind);

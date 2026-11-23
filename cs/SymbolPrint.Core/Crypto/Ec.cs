@@ -24,25 +24,65 @@ namespace SymbolPrint.Core.Crypto
         public const int NonceLen = 12;
         public const int TagLen = 16;
 
+        /// <summary>保护章私钥时用的 AAD，必须是 ASCII（与 VB 版 Bin.ConstBytes 一致）。</summary>
+        private static readonly byte[] PrivateKeyAad = System.Text.Encoding.ASCII.GetBytes("SymbolPrint-PrivateKey-v1");
+
         public static byte[] NewKey() => Bin.RandomBytes(KeyLen);
         public static byte[] NewNonce() => Bin.RandomBytes(NonceLen);
 
-        public static (byte[] Cipher, byte[] Tag) Encrypt(byte[] key, byte[] nonce, byte[] plain, int tagLen = TagLen)
+        /// <summary>
+        /// 加密，返回 (密文, 认证标签)。密钥 16/24/32 字节、tag 12–16、nonce ≥8，
+        /// 与 VB 版同一套约束（这些由高级设置控制，不能在这里写死）。
+        /// </summary>
+        public static (byte[] Cipher, byte[] Tag) Encrypt(byte[] key, byte[] nonce, byte[] plain,
+                                                          byte[] aad = null, int tagLen = TagLen)
         {
+            if (key == null || (key.Length != 16 && key.Length != 24 && key.Length != 32))
+                throw new ArgumentException("AES 密钥必须为 16 / 24 / 32 字节。", nameof(key));
+            if (nonce == null || nonce.Length < 8) throw new ArgumentException("Nonce 至少 8 字节。", nameof(nonce));
+            if (tagLen < 12 || tagLen > 16) throw new ArgumentException("认证标签长度必须在 12–16 字节之间。", nameof(tagLen));
+
             plain ??= Array.Empty<byte>();
             var cipher = new byte[plain.Length];
             var tag = new byte[tagLen];
             using var gcm = new AesGcm(key, tagLen);
-            gcm.Encrypt(nonce, plain, cipher, tag);
+            gcm.Encrypt(nonce, plain, cipher, tag, aad);
             return (cipher, tag);
         }
 
-        public static byte[] Decrypt(byte[] key, byte[] nonce, byte[] cipher, byte[] tag)
+        /// <summary>解密；认证失败抛 CryptographicException。</summary>
+        public static byte[] Decrypt(byte[] key, byte[] nonce, byte[] cipher, byte[] tag, byte[] aad = null)
         {
-            var plain = new byte[cipher?.Length ?? 0];
-            using var gcm = new AesGcm(key, tag?.Length ?? TagLen);
-            gcm.Decrypt(nonce, cipher ?? Array.Empty<byte>(), tag, plain);
+            if (key == null || (key.Length != 16 && key.Length != 24 && key.Length != 32))
+                throw new ArgumentException("AES 密钥必须为 16 / 24 / 32 字节。", nameof(key));
+            if (nonce == null || nonce.Length < 8) throw new ArgumentException("Nonce 至少 8 字节。", nameof(nonce));
+            if (tag == null || tag.Length < 12 || tag.Length > 16)
+                throw new ArgumentException("认证标签长度必须在 12–16 字节之间。", nameof(tag));
+
+            cipher ??= Array.Empty<byte>();
+            var plain = new byte[cipher.Length];
+            using var gcm = new AesGcm(key, tag.Length);
+            gcm.Decrypt(nonce, cipher, tag, plain, aad);
             return plain;
+        }
+
+        /// <summary>用口令派生密钥后加密（保护章 .bin 内的 ECC 私钥）。</summary>
+        public static byte[] SealWithPassword(byte[] plain, string password, int iterations,
+                                              out byte[] salt, out byte[] nonce, out byte[] tag)
+        {
+            salt = Bin.RandomBytes(16);
+            nonce = NewNonce();
+            var key = Sha3Kdf.Pbkdf2(Bin.Utf8Bytes(password), salt, iterations, KeyLen);
+            var r = Encrypt(key, nonce, plain, PrivateKeyAad);
+            tag = r.Tag;
+            return r.Cipher;
+        }
+
+        public static byte[] OpenWithPassword(byte[] cipher, string password, int iterations,
+                                              byte[] salt, byte[] nonce, byte[] tag)
+        {
+            var key = Sha3Kdf.Pbkdf2(Bin.Utf8Bytes(password), salt, iterations, KeyLen);
+            return Decrypt(key, nonce, cipher, tag, PrivateKeyAad);
         }
     }
 
