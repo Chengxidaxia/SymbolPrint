@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>图案编辑器 — SymbolPrint</title>
+<link href="./svgedit.css" rel="stylesheet" media="all">
+<style id="styleoverrides" media="screen"></style>
+<link href="./host.css" rel="stylesheet">
+</head>
+<body>
+  <div id="hostbar">
+    <span class="brand">图案编辑器<span class="brand-sub">SVG-Edit</span></span>
+    <span class="spacer"></span>
+    <span id="hostStatus" class="host-status"></span>
+    <button id="cancelBtn" type="button">取消</button>
+    <button id="okBtn" type="button" class="primary">完成</button>
+  </div>
+  <div id="container"></div>
+  <script src="./iife-Editor.js"></script>
+  <script src="./host.js"></script>
+</body>
+</html>

@@ -28,19 +28,8 @@ Namespace App
                 Dim dark = If(mode = SymbolPrint.Core.Model.AppTheme.Dark, True,
                               If(mode = SymbolPrint.Core.Model.AppTheme.Light, False, Theme.SystemPrefersDark()))
                 Theme.ApplyTheme(dark)
-                Try
-                    IO.File.WriteAllText("K://SymbolPrint//.build//theme-dbg.txt",
-                                         $"mode={mode} dark={dark} bg={Theme.Bg} card={Theme.Card}" & vbCrLf &
-                                         "sysDark=" & Theme.SystemPrefersDark().ToString() & vbCrLf &
-                                         "path=" & SymbolPrint.Core.Model.AppSettings.DefaultPath() & vbCrLf &
-                                         "fileExists=" & IO.File.Exists(SymbolPrint.Core.Model.AppSettings.DefaultPath()).ToString())
-                Catch
-                End Try
             Catch ex As Exception
-                Try
-                    IO.File.WriteAllText("K://SymbolPrint//.build//theme-dbg.txt", "EX " & ex.ToString())
-                Catch
-                End Try
+                UiLog.Write("主题应用失败，回退浅色：" & ex.Message)
             End Try
 
             Try

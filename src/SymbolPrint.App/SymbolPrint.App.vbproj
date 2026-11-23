@@ -30,8 +30,20 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- 图案编辑器是 HTML/JS，作为资源内嵌，避免安装目录里多一层依赖 -->
-    <EmbeddedResource Include="..\..\assets\editor\editor.html" LogicalName="editor.html" />
+    <!-- 图案编辑器：SVG-Edit 7.4.2（MIT）原样随包分发，运行时走虚拟主机映射到 <程序目录>\editor\
+         多文件（js/css/images/extensions）无法用 NavigateToString 加载，必须落盘。
+         ExcludeFromSingleFile 不能省：自包含单文件发布会把大体积 .js 打进 exe，
+         结果 editor 目录里少了 iife-Editor.js / Editor.js，编辑器直接报"内核未加载"。 -->
+    <None Include="..\..\assets\editor\svgedit\**\*"
+          Link="editor\%(RecursiveDir)%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest"
+          CopyToPublishDirectory="PreserveNewest"
+          ExcludeFromSingleFile="true" />
   </ItemGroup>
+
+  <ItemGroup>
+    <!-- 第三方许可（LICENSE-MIT.txt / licenseInfo.json）已在 svgedit 目录内，随上面的通配一起复制 -->
+  </ItemGroup>
+
 
 </Project>

@@ -16,7 +16,7 @@
 | 验章 | 校验信封结构、载荷完整性、记录自校验、原文件哈希、章指纹，逐项给出结论 |
 | 摘章 | 精确摘掉本程序写入的那几段字节，文件恢复成盖章前的样子（逐字节一致） |
 | 可视化盖章 | 全屏打开文件，印章跟随鼠标、滚轮缩放，右键确认落章 |
-| 图案编辑器 | 内置 SVG 图案编辑（WebView2 承载的网页编辑器） |
+| 图案编辑器 | 内置 **SVG-Edit 7.4.2** 内核：贝塞尔路径/节点编辑、渐变、图层、导入导出，离线可用 |
 | 章文件 | `.bin` 章：私钥 + 可选内置 SVG 图案，可加口令保护 |
 | 批量 | 一次添加多个文件 / 整个文件夹，逐个盖章并显示进度与结果 |
 
@@ -50,6 +50,7 @@
   低于该版本启动时会提示（不硬退，但不在支持范围内）。
 - 图案编辑器需要 **Microsoft Edge WebView2 运行时**：Windows 11 一般自带，Windows 10 需要装一次。
   盖章、验章、摘章不依赖它。
+- 解压后 **`editor\` 目录必须和 `SymbolPrint.exe` 同级**（编辑器内核在里面，缺了会明确报错而不是静默失败）。
 - 发布包二选一：
 
 | 包 | 体积 | 依赖 |
@@ -182,7 +183,7 @@ spcli svg2png <in.svg> <out.png> [--width 512]
 src/SymbolPrint.Core/    核心库：密码学、信封、载体、盖章/验章/摘章
 src/SymbolPrint.App/     WinForms 界面（VB.NET）
 src/SymbolPrint.Cli/     命令行
-assets/                  程序图标、图案编辑器页面
+assets/editor/svgedit/    SVG-Edit 7.4.2 发行版（随包复制到 <程序目录>\editor\）
 tests/vectors/           字节级一致性测试向量
 tools/                   开发期小工具
 cs/                      早期 C# 原型（未参与构建，仅作历史留存）
@@ -206,3 +207,15 @@ SymbolPrint.exe --hovertest out.txt     # 用真实鼠标验证按钮悬停是�
 ## 许可
 
 尚未指定开源许可。在明确许可前，请勿直接用于商业分发。
+
+### 第三方组件
+
+| 组件 | 版本 | 许可 | 说明 |
+|---|---|---|---|
+| [SVG-Edit](https://github.com/SVG-Edit/svgedit) | 7.4.2 | MIT（另有 Apache-2.0 / X11 等依赖，见 `editor/licenseInfo.json`） | 图案编辑器内核，代码原样随包分发在 `editor/` 目录，未做修改 |
+| PDFsharp | 1.50 | MIT | PDF 读写 |
+| BouncyCastle.Cryptography | 2.7.0 | MIT | 密码学原语 |
+| Microsoft.Web.WebView2 | 1.0.3351.48 | 微软 SDK 许可 | 承载编辑器页面 |
+| Svg (SVG.NET) | 3.4.8 | MS-PL | 图案光栅化 |
+
+SVG-Edit 的完整许可文本见 `editor/LICENSE-MIT.txt`，各依赖的许可归属见 `editor/licenseInfo.json`。

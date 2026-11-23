@@ -868,6 +868,7 @@ Namespace App
                 If ei + 1 < _startupArgs.Length AndAlso Not _startupArgs(ei + 1).StartsWith("--") Then script = _startupArgs(ei + 1)
                 Using f As New SvgEditorForm("")
                     f.AutoScript = script
+                    f.CapturePath = ArgValue("--editorshot")
                     Dim r = f.ShowDialog(Me)
                     ' 编辑器产出的图案直接带到做章页，省一次点选
                     If r = DialogResult.OK AndAlso Not String.IsNullOrEmpty(f.ResultSvg) Then

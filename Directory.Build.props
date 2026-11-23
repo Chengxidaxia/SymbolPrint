@@ -11,10 +11,10 @@
     <EnableDefaultNoneItems>false</EnableDefaultNoneItems>
 
     <!-- 版本：只改这里一处，exe 文件属性、CLI 输出都跟着走 -->
-    <Version>1.0.3</Version>
-    <AssemblyVersion>1.0.3.0</AssemblyVersion>
-    <FileVersion>1.0.3.0</FileVersion>
-    <InformationalVersion>1.0.3</InformationalVersion>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
+    <InformationalVersion>1.1.0</InformationalVersion>
     <Product>SymbolPrint</Product>
     <Description>SymbolPrint 电子盖章：把章写进文件的空白区，不改动原有内容</Description>
 

@@ -1,0 +1,146 @@
+/* 宿主外壳样式：顶栏 + SVG-Edit 容器。
+ *
+ * 配色说明（踩过的坑）：SVG-Edit 的工具图标是纯白 fill 的 SVG（images/*.svg 里 fill:#fff），
+ * 它是为深灰工具栏设计的。把 --main-bg-color / --icon-bg-color 改成浅色 = 白底白图，
+ * 27 个按钮会全部"消失"（DOM 在、图片也加载成功，就是看不见）。
+ * 所以浅色主题下保持它原生的深灰工具栏，只在深色主题里把底色压得更暗。
+ */
+
+:root {
+  --hostbar-h: 44px;
+  /* 原生 80px 里实际只放一行 45px 的按钮，压到 52px 少浪费一条空白 */
+  --top-toolbar-min-height: 52px;
+  /* 工具栏底色保持深灰——图标是纯白 fill，改浅就看不见了；
+     但画布周围的工作区可以调浅，和主程序的浅色体系衔接。 */
+  --canvas-bg-color: #cfd6e0;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif;
+  font-size: 13px;
+  color: #1c2026;
+  background: #f4f6f9;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+}
+
+#hostbar {
+  flex: 0 0 var(--hostbar-h);
+  height: var(--hostbar-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  box-sizing: border-box;
+  background: #ffffff;
+  border-bottom: 1px solid #dfe3ea;
+  user-select: none;
+}
+
+#hostbar .brand {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1c2026;
+}
+
+#hostbar .brand-sub {
+  margin-left: 8px;
+  font-weight: 400;
+  font-size: 12px;
+  color: #6c7580;
+}
+
+#hostbar .spacer {
+  flex: 1 1 auto;
+}
+
+#hostbar .host-status {
+  font-size: 12px;
+  color: #6c7580;
+  margin-right: 4px;
+}
+
+#hostbar button {
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1;
+  padding: 7px 14px;
+  border-radius: 6px;
+  border: 1px solid #c6ccd6;
+  background: #ffffff;
+  color: #1c2026;
+  cursor: pointer;
+}
+
+#hostbar button:hover {
+  background: #f6f8fb;
+}
+
+#hostbar button.primary {
+  background: #2563d7;
+  border-color: #2563d7;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+#hostbar button.primary:hover {
+  background: #1c52ba;
+}
+
+/* SVG-Edit 画布容器必须拿到确定高度，否则 grid 会塌成 0 */
+#container {
+  flex: 1 1 auto;
+  min-height: 0;
+  position: relative;
+}
+
+/* 深色主题：由 .NET 侧在文档创建阶段注入 window.__SP_DARK__，
+   host.js 立刻把 data-theme 挂到 <html>。
+   这里只压暗外壳，工具栏底色仍要比图标深得多，白图标才看得见。 */
+html[data-theme="dark"] {
+  --main-bg-color: #2a2f37;
+  --icon-bg-color: #2a2f37;
+  --icon-bg-color-hover: #3a424e;
+  --canvas-bg-color: #1a1d22;
+  --border-color: #3f4650;
+  /* 标尺刻度是 canvas 里写死的黑字（Rulers.js 没设 fillStyle），
+     所以标尺底色不能跟着变深，否则黑字黑底全看不见。保持中灰。 */
+  --ruler-color: #9aa3ad;
+  --link-color: #6ea8ff;
+  --orange-color: #6ea8ff;
+}
+
+html[data-theme="dark"] body {
+  background: #1a1d22;
+  color: #e6e9ef;
+}
+
+html[data-theme="dark"] #hostbar {
+  background: #23272e;
+  border-bottom-color: #3a4048;
+}
+
+html[data-theme="dark"] #hostbar .brand { color: #e6e9ef; }
+html[data-theme="dark"] #hostbar .brand-sub,
+html[data-theme="dark"] #hostbar .host-status { color: #98a0ac; }
+
+html[data-theme="dark"] #hostbar button {
+  background: #2b3038;
+  border-color: #3f4650;
+  color: #e6e9ef;
+}
+
+html[data-theme="dark"] #hostbar button:hover { background: #333a44; }
+
+html[data-theme="dark"] #hostbar button.primary {
+  background: #2563d7;
+  border-color: #2563d7;
+  color: #ffffff;
+}
