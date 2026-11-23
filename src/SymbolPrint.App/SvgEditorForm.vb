@@ -64,6 +64,24 @@ Namespace App
             Return Path.Combine(AppContext.BaseDirectory, "editor")
         End Function
 
+        ''' <summary>
+        ''' WebView2 的用户数据目录（缓存 / Profile / localStorage）。
+        ''' 默认会建在 exe 旁边（"SymbolPrint.exe.WebView2"），把绿色版目录撑到几十 MB，
+        ''' 还会跟着目录一起被复制、压缩、备份。显式挪到 %LOCALAPPDATA%\SymbolPrint\WebView2。
+        ''' 不可写时返回 Nothing，交给 WebView2 用默认位置。
+        ''' </summary>
+        Friend Shared Function WebViewDataDir() As String
+            Try
+                Dim baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData)
+                If String.IsNullOrWhiteSpace(baseDir) Then Return Nothing
+                Dim dir = Path.Combine(baseDir, "SymbolPrint", "WebView2")
+                Directory.CreateDirectory(dir)
+                Return dir
+            Catch
+                Return Nothing
+            End Try
+        End Function
+
         Private Async Sub OnFormLoad(sender As Object, e As EventArgs)
             Try
                 Dim dir = EditorDir()
@@ -79,7 +97,19 @@ Namespace App
                     Throw New InvalidOperationException("未检测到 WebView2 运行时。")
                 End If
 
-                Await _web.EnsureCoreWebView2Async(Nothing)
+                ' 用户数据目录显式指定，避免缓存落在程序目录（见 WebViewDataDir 注释）
+                Dim dataDir = WebViewDataDir()
+                Dim env As CoreWebView2Environment = Nothing
+                If dataDir IsNot Nothing Then
+                    Try
+                        env = Await CoreWebView2Environment.CreateAsync(Nothing, dataDir, Nothing)
+                    Catch ex As Exception
+                        UiLog.Write("WebView2 用户数据目录不可用，回退默认位置：" & ex.Message)
+                        env = Nothing
+                    End Try
+                End If
+
+                Await _web.EnsureCoreWebView2Async(env)
 
                 With _web.CoreWebView2
                     .SetVirtualHostNameToFolderMapping(VirtualHost, dir, CoreWebView2HostResourceAccessKind.DenyCors)

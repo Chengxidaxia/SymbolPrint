@@ -7,6 +7,14 @@ publish/
 *.suo
 .vs/
 
+# ---- 解压出来的绿色版目录（含 exe/dll 与运行数据，发布走 Release 附件）----
+SymbolPrint-win-x64/
+
+# ---- WebView2 运行时数据（浏览器 Profile / 缓存：History、Cookies、Local Storage）----
+# 属于用户本机数据，绝不能入库；v1.1.0 起程序已把它移到 %LOCALAPPDATA%\SymbolPrint\WebView2
+*.WebView2/
+**/*.WebView2/
+
 # ---- 本地临时/诊断产物 ----
 .build/
 *.log
